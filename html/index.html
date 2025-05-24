@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🥭 Mango 文件管理器</title>
+    <link rel="icon" href="__ASSETS_PREFIX__favicon.png" type="image/x-icon">
+    <link rel="apple-touch-icon" sizes="180x180" href="__ASSETS_PREFIX__favicon.png">
+    
+    <!-- iOS Web App 配置 -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="🥭 Mango 文件管理器">
+    
+    <link rel="stylesheet" href="__ASSETS_PREFIX__style.css">
+    <style>
+        @media only screen and (max-width: 768px) {
+            .toolbar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .search-section {
+                width: 100%;
+            }
+            .tool-buttons {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 顶部工具栏 -->
+        <div class="toolbar">
+            <!-- 当前路径 -->
+            <div class="breadcrumb-section">
+                <div class="breadcrumb" id="breadcrumb">
+                    <a href="#" onclick="navigateTo('/')">/</a>
+                </div>
+            </div>
+
+            <!-- 工具按钮组 -->
+            <div class="tool-buttons">
+                <button class="icon-btn" onclick="refreshFileList()" data-tooltip="刷新文件列表">
+                    🔄
+                </button>
+                <button class="icon-btn" onclick="document.getElementById('fileInput').click()" data-tooltip="选择文件上传">
+                    📁
+                </button>
+                <button class="icon-btn" onclick="createFolder()" data-tooltip="新建文件夹">
+                    📂
+                </button>
+                <button class="icon-btn" onclick="downloadAsZip()" data-tooltip="下载为ZIP">
+                    📦
+                </button>
+                <button class="icon-btn" onclick="checkHealth()" data-tooltip="系统健康检查">
+                    ❤️
+                </button>
+            </div>
+
+            <!-- 搜索功能 -->
+            <div class="search-section">
+                <div class="search-input-group">
+                    <input type="text" id="searchInput" placeholder="🔍 搜索文件...">
+                    <button class="icon-btn" onclick="searchFiles()" data-tooltip="搜索">
+                        ⏎
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 搜索结果 -->
+        <div class="info-panels">
+            <div id="searchResults" class="search-results" style="display: none;"></div>
+        </div>
+
+        <div class="main-content">
+            <!-- 主文件区域 -->
+            <div class="file-area">
+                <!-- 上传进度 -->
+                <div id="uploadProgress" style="display: none;">
+                    <h4>📤 上传进度</h4>
+                    <div class="progress">
+                        <div class="progress-bar" id="progressBar"></div>
+                    </div>
+                    <div id="uploadStatus"></div>
+                </div>
+
+                <!-- 文件列表 -->
+                <div class="section file-list-section">
+                    <h3>📋 文件列表</h3>
+                    <div id="fileList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 拖拽上传覆盖层 -->
+    <div id="dropOverlay" class="drop-overlay" style="display: none;">
+        <div class="drop-message">
+            <div class="drop-icon">📁</div>
+            <h2>拖拽文件到这里上传</h2>
+            <p>支持多个文件同时上传</p>
+        </div>
+    </div>
+
+    <!-- 隐藏的文件输入 -->
+    <input type="file" id="fileInput" multiple style="display: none;">
+
+    <!-- 状态消息 -->
+    <div id="statusMessage"></div>
+
+    <!-- 引入外部JavaScript文件 -->
+    <script src="__ASSETS_PREFIX__script.js"></script>
+</body>
+</html>
