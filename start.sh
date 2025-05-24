@@ -9,6 +9,10 @@ echo "   🥭 Mango 文件管理器启动"
 echo "================================="
 echo
 
+# 配置信息
+DUFS_VERSION="v0.43.0"
+GITHUB_BASE_URL="https://github.com/sigoden/dufs/releases/download/$DUFS_VERSION"
+
 # 检测系统架构和操作系统
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
@@ -29,11 +33,11 @@ esac
 # 设置下载URL
 if [ "$OS" = "darwin" ]; then
     # macOS
-    DOWNLOAD_URL="https://github.com/sigoden/dufs/releases/latest/download/dufs-v0.42.0-$ARCH-apple-darwin.tar.gz"
+    DOWNLOAD_URL="$GITHUB_BASE_URL/dufs-$DUFS_VERSION-$ARCH-apple-darwin.tar.gz"
     DUFS_BINARY="dufs"
 else
     # Linux
-    DOWNLOAD_URL="https://github.com/sigoden/dufs/releases/latest/download/dufs-v0.42.0-$ARCH-unknown-linux-musl.tar.gz"
+    DOWNLOAD_URL="$GITHUB_BASE_URL/dufs-$DUFS_VERSION-$ARCH-unknown-linux-musl.tar.gz"
     DUFS_BINARY="dufs"
 fi
 
