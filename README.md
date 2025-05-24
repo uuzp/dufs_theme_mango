@@ -1,6 +1,11 @@
 # 🥭 Mango - Dufs 现代化主题
 
+[![Version](https://img.shields.io/badge/version-v0.1.1-brightgreen.svg)](https://github.com/uuzp/dufs_theme_mango/releases)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 一个为 [Dufs](https://github.com/sigoden/dufs) 文件服务器设计的现代化、原生体验的 Web 文件管理器主题。
+
+> 📋 [查看更新日志](CHANGELOG.md) | 🐛 [报告问题](https://github.com/uuzp/dufs_theme_mango/issues)
 
 ## ✨ 特性
 
