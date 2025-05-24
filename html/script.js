@@ -270,9 +270,8 @@ async function uploadFiles(files) {
         const progress = ((i + 1) / files.length) * 100;
         progressBar.style.width = progress + '%';
         uploadStatus.textContent = `上传中: ${file.name} (${i + 1}/${files.length})`;
-        
-        try {
-            const uploadPath = currentPath + (currentPath.endsWith('/') ? '' : '/') + file.name;
+          try {
+            const uploadPath = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(file.name);
             const response = await fetch(uploadPath, {
                 method: 'PUT',
                 body: file
@@ -291,7 +290,7 @@ async function uploadFiles(files) {
 
 // 下载文件
 function downloadFile(filename) {
-    const url = currentPath + (currentPath.endsWith('/') ? '' : '/') + filename;
+    const url = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(filename);
     window.open(url, '_blank');
 }
 
@@ -315,7 +314,7 @@ async function copyToClipboard(text) {
 // 获取文件哈希
 async function getFileHash(filename) {
     try {
-        const url = currentPath + (currentPath.endsWith('/') ? '' : '/') + filename + '?hash';
+        const url = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(filename) + '?hash';
         console.log('Fetching hash from URL:', url);
         
         const response = await fetch(url);
@@ -339,7 +338,7 @@ async function deleteFile(filename) {
     if (!confirm(`确定要删除 "${filename}" 吗？`)) return;
     
     try {
-        const url = currentPath + (currentPath.endsWith('/') ? '' : '/') + filename;
+        const url = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(filename);
         const response = await fetch(url, { method: 'DELETE' });
         
         if (!response.ok) throw new Error('删除失败');
@@ -357,7 +356,7 @@ async function moveFile(filename) {
     if (!newPath || newPath === currentPath + '/' + filename) return;
     
     try {
-        const oldUrl = currentPath + (currentPath.endsWith('/') ? '' : '/') + filename;
+        const oldUrl = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(filename);
         const response = await fetch(oldUrl, {
             method: 'MOVE',
             headers: {
@@ -380,7 +379,7 @@ async function createFolder() {
     if (!folderName) return;
     
     try {
-        const url = currentPath + (currentPath.endsWith('/') ? '' : '/') + folderName;
+        const url = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(folderName);
         const response = await fetch(url, { method: 'MKCOL' });
         
         if (!response.ok) throw new Error('创建文件夹失败');
@@ -536,7 +535,7 @@ async function checkHealth() {
 function handleFileClick(filename, isDir) {
     if (isDir) {
         // 文件夹：导航进入
-        navigateTo(currentPath + (currentPath.endsWith('/') ? '' : '/') + filename);
+        navigateTo(currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(filename));
     } else {
         // 文件：下载
         downloadFile(filename);
@@ -659,18 +658,12 @@ async function handleDrop(event, targetFolderName, isTargetDir) {
         showStatus('不能将文件夹移动到自己内部', 'error');
         return;
     }
-    
-    // 重置拖拽状态
+      // 重置拖拽状态
     draggedItem = null;
     
-    // 确认移动
-    if (!confirm(`确定要将 "${sourceFile}" 移动到 "${targetFolderName}" 文件夹吗？`)) {
-        return;
-    }
-    
     try {
-        const oldUrl = sourcePath + (sourcePath.endsWith('/') ? '' : '/') + sourceFile;
-        const newUrl = targetPath + '/' + sourceFile;
+        const oldUrl = sourcePath + (sourcePath.endsWith('/') ? '' : '/') + encodeURIComponent(sourceFile);
+        const newUrl = targetPath + '/' + encodeURIComponent(sourceFile);
         
         const response = await fetch(oldUrl, {
             method: 'MOVE',
@@ -692,10 +685,9 @@ async function handleDrop(event, targetFolderName, isTargetDir) {
 async function renameFile(oldName) {
     const newName = prompt(`请输入新的文件名:`, oldName);
     if (!newName || newName === oldName) return;
-    
-    try {
-        const oldUrl = currentPath + (currentPath.endsWith('/') ? '' : '/') + oldName;
-        const newUrl = currentPath + (currentPath.endsWith('/') ? '' : '/') + newName;
+      try {
+        const oldUrl = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(oldName);
+        const newUrl = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(newName);
         
         const response = await fetch(oldUrl, {
             method: 'MOVE',
@@ -716,7 +708,7 @@ async function renameFile(oldName) {
 // 获取文件信息
 async function getFileInfo(filename) {
     try {
-        const url = currentPath + (currentPath.endsWith('/') ? '' : '/') + filename;
+        const url = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(filename);
         const response = await fetch(url, { method: 'HEAD' });
         
         if (!response.ok) throw new Error('获取文件信息失败');
@@ -764,18 +756,12 @@ async function handleBreadcrumbDrop(event, targetPath) {
         showStatus('文件已在该位置', 'error');
         return;
     }
-    
-    // 重置拖拽状态
+      // 重置拖拽状态
     draggedItem = null;
     
-    // 确认移动
-    if (!confirm(`确定要将 "${sourceFile}" 移动到 "${targetPath}" 吗？`)) {
-        return;
-    }
-    
     try {
-        const oldUrl = sourcePath + (sourcePath.endsWith('/') ? '' : '/') + sourceFile;
-        const newUrl = targetPath + (targetPath.endsWith('/') ? '' : '/') + sourceFile;
+        const oldUrl = sourcePath + (sourcePath.endsWith('/') ? '' : '/') + encodeURIComponent(sourceFile);
+        const newUrl = targetPath + (targetPath.endsWith('/') ? '' : '/') + encodeURIComponent(sourceFile);
         
         const response = await fetch(oldUrl, {
             method: 'MOVE',
