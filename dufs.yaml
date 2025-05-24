@@ -1,0 +1,45 @@
+# Dufs 配置示例
+# 使用 dufs --config dufs.yaml 启动
+
+# 服务配置
+serve-path: './data'               # 服务目录（数据目录）
+bind: 0.0.0.0                     # 绑定地址
+port: 5000                         # 端口号
+path-prefix: /                     # 路径前缀
+
+# 权限配置
+allow-all: true                    # 允许所有操作 
+# allow-upload: true               # 仅允许上传
+# allow-delete: true               # 仅允许删除
+# allow-search: true               # 仅允许搜索
+# allow-symlink: true              # 允许符号链接
+# allow-archive: true              # 允许存档下载
+
+# 用户认证 (可选)
+# auth:
+#   - admin:password@/:rw          # 管理员账户，读写权限
+#   - user:pass@/public:rw,/private:ro  # 普通用户，部分权限
+#   - '@/public'                   # 公开访问public目录
+
+# 界面配置
+#render-try-index: true             # 尝试渲染index.html
+assets: "./html"                    # 自定义资源目录（指向我们的主题）
+
+# 功能配置
+enable-cors: true                  # 启用CORS
+compress: medium                   # 压缩级别
+
+# 安全配置
+hidden:                           # 隐藏文件
+  - .git
+  - .env
+  - '*.log'
+  - '*.tmp'
+
+# 日志配置
+log-format: '$remote_addr "$request" $status $http_user_agent'
+# log-file: ./dufs.log             # 日志文件路径
+
+# HTTPS配置 (可选)
+# tls-cert: cert.pem
+# tls-key: key.pem
