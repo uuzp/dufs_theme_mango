@@ -3,23 +3,23 @@
 
 # 服务配置
 serve-path: './data'               # 服务目录（数据目录）
-bind: 0.0.0.0                     # 绑定地址
+bind: 127.0.0.1                   # 绑定地址（仅本地访问）
 port: 5000                         # 端口号
 path-prefix: /                     # 路径前缀
 
 # 权限配置
-allow-all: true                    # 允许所有操作 
+allow-all: true                    # 允许所有操作（已认证用户）
 # allow-upload: true               # 仅允许上传
 # allow-delete: true               # 仅允许删除
 # allow-search: true               # 仅允许搜索
 # allow-symlink: true              # 允许符号链接
 # allow-archive: true              # 允许存档下载
 
-# 用户认证 (可选)
-# auth:
-#   - admin:password@/:rw          # 管理员账户，读写权限
-#   - user:pass@/public:rw,/private:ro  # 普通用户，部分权限
-#   - '@/public'                   # 公开访问public目录
+# 用户认证 (推荐配置)
+auth:
+  - admin:password@/:rw            # 管理员账户，读写权限  
+  - user:pass@/:ro                 # 普通用户，只读权限
+  - '@/'                           # 匿名用户，只读权限
 
 # 界面配置
 #render-try-index: true             # 尝试渲染index.html
