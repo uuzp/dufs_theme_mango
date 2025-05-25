@@ -284,11 +284,16 @@ function setupEventListeners() {
             e.preventDefault();
             createFolder();
         }
-        
-        // Ctrl/Cmd + D: 下载当前文件夹为ZIP
+          // Ctrl/Cmd + D: 下载当前文件夹为ZIP
         else if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
             e.preventDefault();
             downloadAsZip();
+        }
+        
+        // Ctrl/Cmd + Shift + T: 新建文本文件
+        else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'T') {
+            e.preventDefault();
+            createNewTextFile();
         }
     });
 }
@@ -919,6 +924,13 @@ function isArchiveFile(filename) {
     return archiveExtensions.some(extension => ext.endsWith('.' + extension));
 }
 
+// 检查是否为文本文件
+function isTextFile(filename) {
+    const textExtensions = ['txt', 'md', 'js', 'html', 'css', 'json', 'xml', 'csv', 'log', 'yml', 'yaml', 'ini', 'cfg', 'conf', 'sh', 'bat', 'py', 'php', 'cpp', 'c', 'h', 'java', 'go', 'rs', 'ts', 'jsx', 'tsx', 'vue', 'svelte', 'sql', 'properties', 'toml'];
+    const ext = filename.split('.').pop().toLowerCase();
+    return textExtensions.includes(ext);
+}
+
 // 预览图片
 function previewImage(filename) {
     const imageUrl = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(filename);
@@ -993,9 +1005,11 @@ function handleFileClick(filename, isDir) {
         const newPath = currentPath + (currentPath.endsWith('/') ? '' : '/') + filename;
         navigateTo(newPath);
     } else {
-        // 文件 - 检查是否为图片
+        // 文件 - 检查类型并处理
         if (isImageFile(filename)) {
             previewImage(filename);
+        } else if (isTextFile(filename)) {
+            editTextFile(filename);
         } else {
             downloadFile(filename);
         }
@@ -1020,13 +1034,21 @@ function handleRightClick(event, filename, isDir) {
     // 先添加到DOM以获取尺寸
     document.body.appendChild(contextMenu);
     
-    let menuItems = '';
-      if (!isDir) {
+    let menuItems = '';      if (!isDir) {
         // 文件的右键菜单
         if (isImageFile(filename)) {
             menuItems += `
                 <div class="context-menu-item" onclick="previewImage('${filename}'); removeContextMenu();">
                     👁️ 预览图片
+                </div>
+            `;
+        }
+        
+        // 文本文件添加编辑选项
+        if (isTextFile(filename)) {
+            menuItems += `
+                <div class="context-menu-item" onclick="editTextFile('${filename}'); removeContextMenu();">
+                    ✏️ 编辑文本
                 </div>
             `;
         }
@@ -1502,9 +1524,323 @@ async function createFolderSilent(folderName) {
     }
 }
 
-// 调试：在控制台显示设备类型
-console.log('设备类型检测:', {
-    isMobile: isMobileDevice(),
-    userAgent: navigator.userAgent,
-    windowWidth: window.innerWidth
-});
+// 编辑文本文件
+async function editTextFile(filename) {
+    try {
+        // 获取文件内容
+        const fileUrl = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(filename);
+        const headers = {};
+        if (authToken) {
+            headers['Authorization'] = authToken;
+        }
+        
+        const response = await fetch(fileUrl, {
+            headers,
+            credentials: 'omit'
+        });
+        
+        if (!response.ok) {
+            if (response.status === 404) {
+                throw new Error('文件不存在');
+            } else if (response.status === 403) {
+                throw new Error('没有权限访问文件');
+            } else {
+                throw new Error(`读取文件失败 (${response.status})`);
+            }
+        }
+          // 使用 arrayBuffer 然后自动检测编码并转换为文本
+        const arrayBuffer = await response.arrayBuffer();
+        const content = decodeTextWithAutoDetection(arrayBuffer);
+        
+        showTextEditor(filename, content);
+        
+    } catch (error) {
+        showStatus('读取文件失败: ' + error.message, 'error');
+    }
+}
+
+// 显示文本编辑器
+function showTextEditor(filename, content) {
+    // 创建编辑器覆盖层
+    const overlay = document.createElement('div');
+    overlay.id = 'textEditorOverlay';
+    overlay.className = 'text-editor-overlay';
+    
+    overlay.innerHTML = `
+        <div class="text-editor-container">
+            <div class="text-editor-header">
+                <div class="editor-title">
+                    <span class="editor-icon">📝</span>
+                    <span class="editor-filename">${filename}</span>
+                </div>
+                <div class="editor-actions">
+                    <button class="btn btn-secondary" onclick="closeTextEditor()">取消</button>
+                    <button class="btn btn-primary" onclick="saveTextFile('${filename}')">保存</button>
+                    <button class="close-btn" onclick="closeTextEditor()">✕</button>
+                </div>
+            </div>
+            <div class="text-editor-content">
+                <textarea 
+                    id="textEditor" 
+                    class="text-editor-textarea" 
+                    placeholder="在此编辑文本内容..."
+                    spellcheck="false"
+                >${content}</textarea>
+            </div>
+            <div class="text-editor-footer">
+                <div class="editor-stats">
+                    <span id="editorStats">字符数: ${content.length}</span>
+                </div>                <div class="editor-info">
+                    <span class="editor-tip">💡 提示: Ctrl+S 快速保存，Esc 关闭编辑器，Ctrl+Shift+T 新建文本文件</span>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+      // 聚焦到编辑器
+    const textarea = document.getElementById('textEditor');
+    textarea.focus();
+    
+    // 设置原始内容用于检测未保存更改
+    textarea.dataset.originalContent = content;
+    
+    // 更新字符统计
+    textarea.addEventListener('input', updateEditorStats);
+    
+    // 键盘快捷键
+    overlay.addEventListener('keydown', handleEditorKeydown);
+    
+    // 防止背景滚动
+    document.body.style.overflow = 'hidden';
+}
+
+// 更新编辑器统计信息
+function updateEditorStats() {
+    const textarea = document.getElementById('textEditor');
+    const statsElement = document.getElementById('editorStats');
+    if (textarea && statsElement) {
+        const content = textarea.value;
+        const lines = content.split('\n').length;
+        statsElement.textContent = `字符数: ${content.length} | 行数: ${lines}`;
+    }
+}
+
+// 处理编辑器键盘快捷键
+function handleEditorKeydown(event) {
+    // Ctrl/Cmd + S: 保存文件
+    if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+        event.preventDefault();
+        const overlay = document.getElementById('textEditorOverlay');
+        if (overlay) {
+            const filename = overlay.querySelector('.editor-filename').textContent;
+            saveTextFile(filename);
+        }
+    }
+    
+    // Escape: 关闭编辑器
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        closeTextEditor();
+    }
+}
+
+// 保存文本文件
+async function saveTextFile(filename) {
+    // 权限检查
+    if (!requireAuth('保存文件')) {
+        return;
+    }
+    
+    const textarea = document.getElementById('textEditor');
+    if (!textarea) {
+        showStatus('编辑器不存在', 'error');
+        return;
+    }
+    
+    const content = textarea.value;
+    const fileUrl = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(filename);
+    
+    try {
+        showStatus('正在保存文件...', 'info');
+        
+        // 使用 TextEncoder 确保正确处理中文编码
+        const encoder = new TextEncoder();
+        const encodedContent = encoder.encode(content);
+        
+        const response = await fetch(fileUrl, {
+            method: 'PUT',
+            body: encodedContent,
+            headers: {
+                'Authorization': authToken,
+                'Content-Type': 'text/plain; charset=utf-8'
+            },
+            credentials: 'omit'
+        });
+        
+        if (response.status === 401) {
+            showStatus('权限不足，请重新登录', 'error');
+            return;
+        }
+        
+        if (!response.ok) {
+            throw new Error(`保存失败 (${response.status})`);
+        }
+          showStatus(`✅ 成功保存文件: ${filename}`, 'success', 3000);
+        
+        // 更新原始内容标记
+        const textarea = document.getElementById('textEditor');
+        if (textarea) {
+            textarea.dataset.originalContent = content;
+        }
+        
+        closeTextEditor();
+        refreshFileList(); // 刷新文件列表
+        
+    } catch (error) {
+        showStatus('保存文件失败: ' + error.message, 'error');
+    }
+}
+
+// 关闭文本编辑器
+function closeTextEditor() {
+    const overlay = document.getElementById('textEditorOverlay');
+    if (overlay) {
+        overlay.remove();
+        // 恢复背景滚动
+        document.body.style.overflow = '';
+    }
+}
+
+// 创建新文本文件
+async function createNewTextFile() {
+    // 权限检查
+    if (!requireAuth('创建文件')) {
+        return;
+    }
+    
+    const filename = prompt('请输入新文件名称（建议包含扩展名，如 .txt, .md 等）:');
+    if (!filename) return;
+    
+    // 验证文件名
+    if (filename.includes('/') || filename.includes('\\') || filename.includes('..')) {
+        showStatus('文件名不能包含路径分隔符或相对路径', 'error');
+        return;
+    }
+    
+    try {
+        // 创建空文件
+        const fileUrl = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(filename);
+        
+        const response = await fetch(fileUrl, {
+            method: 'PUT',
+            body: '',
+            headers: {
+                'Authorization': authToken,
+                'Content-Type': 'text/plain; charset=utf-8'
+            },
+            credentials: 'omit'
+        });
+        
+        if (response.status === 401) {
+            showStatus('权限不足，请重新登录', 'error');
+            return;
+        }
+        
+        if (!response.ok) {
+            throw new Error(`创建文件失败 (${response.status})`);
+        }
+        
+        showStatus(`✅ 成功创建文件: ${filename}`, 'success');
+        refreshFileList();
+        
+        // 自动打开编辑器
+        setTimeout(() => {
+            editTextFile(filename);
+        }, 500);
+        
+    } catch (error) {
+        showStatus('创建文件失败: ' + error.message, 'error');
+    }
+}
+
+// 自动检测文本编码并解码
+function decodeTextWithAutoDetection(arrayBuffer) {
+    const uint8Array = new Uint8Array(arrayBuffer);
+    
+    // 检测 UTF-16 LE BOM (FF FE)
+    if (uint8Array.length >= 2 && uint8Array[0] === 0xFF && uint8Array[1] === 0xFE) {
+        console.log('检测到 UTF-16 LE 编码');
+        const decoder = new TextDecoder('utf-16le');
+        return decoder.decode(arrayBuffer);
+    }
+    
+    // 检测 UTF-16 BE BOM (FE FF)
+    if (uint8Array.length >= 2 && uint8Array[0] === 0xFE && uint8Array[1] === 0xFF) {
+        console.log('检测到 UTF-16 BE 编码');
+        const decoder = new TextDecoder('utf-16be');
+        return decoder.decode(arrayBuffer);
+    }
+    
+    // 检测 UTF-8 BOM (EF BB BF)
+    if (uint8Array.length >= 3 && uint8Array[0] === 0xEF && uint8Array[1] === 0xBB && uint8Array[2] === 0xBF) {
+        console.log('检测到 UTF-8 BOM 编码');
+        const decoder = new TextDecoder('utf-8');
+        return decoder.decode(arrayBuffer);
+    }
+    
+    // 检测是否可能是 UTF-16 LE (无BOM)
+    // UTF-16 LE 的特征是每两个字节中第二个字节经常是0（对于ASCII字符）
+    if (uint8Array.length >= 4) {
+        let nullByteCount = 0;
+        let totalPairs = Math.min(100, Math.floor(uint8Array.length / 2)); // 检查前100对字节
+        
+        for (let i = 1; i < totalPairs * 2; i += 2) {
+            if (uint8Array[i] === 0) {
+                nullByteCount++;
+            }
+        }
+        
+        // 如果超过30%的奇数位置字节是0，可能是UTF-16 LE
+        if (nullByteCount > totalPairs * 0.3) {
+            console.log('推测为 UTF-16 LE 编码（无BOM）');
+            try {
+                const decoder = new TextDecoder('utf-16le');
+                const decoded = decoder.decode(arrayBuffer);
+                // 检查解码结果是否包含有效字符
+                if (decoded && !decoded.includes('\uFFFD')) {
+                    return decoded;
+                }
+            } catch (e) {
+                console.log('UTF-16 LE 解码失败，尝试其他编码');
+            }
+        }
+    }
+    
+    // 尝试 UTF-8 解码
+    try {
+        const decoder = new TextDecoder('utf-8', { fatal: true });
+        const decoded = decoder.decode(arrayBuffer);
+        console.log('使用 UTF-8 编码解码成功');
+        return decoded;
+    } catch (e) {
+        console.log('UTF-8 解码失败，尝试 GBK');
+    }
+    
+    // 最后尝试 GBK (中文系统常见编码)
+    try {
+        const decoder = new TextDecoder('gbk');
+        const decoded = decoder.decode(arrayBuffer);
+        console.log('使用 GBK 编码解码');
+        return decoded;
+    } catch (e) {
+        console.log('GBK 解码失败，使用默认UTF-8');
+    }
+    
+    // 如果所有尝试都失败，使用UTF-8并忽略错误
+    const decoder = new TextDecoder('utf-8', { fatal: false });
+    console.log('使用 UTF-8 编码（忽略错误）');
+    return decoder.decode(arrayBuffer);
+}
+
+// 检查是否为压缩文件

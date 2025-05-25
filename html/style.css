@@ -1170,3 +1170,188 @@ body.dragging .container {
         margin: 2px 0;
     }
 }
+
+/* 文本编辑器样式 */
+.text-editor-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 2500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.text-editor-container {
+    width: 100%;
+    max-width: 1200px;
+    height: 100%;
+    max-height: 800px;
+    background: white;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+}
+
+.text-editor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    flex-shrink: 0;
+}
+
+.editor-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.editor-icon {
+    font-size: 1.2em;
+}
+
+.editor-filename {
+    font-weight: 600;
+    color: #333;
+    font-size: 16px;
+}
+
+.editor-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.text-editor-content {
+    flex: 1;
+    padding: 0;
+    overflow: hidden;
+    display: flex;
+}
+
+.text-editor-textarea {
+    width: 100%;
+    height: 100%;
+    border: none;
+    outline: none;
+    padding: 20px;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    resize: none;
+    background: #fafafa;
+    color: #333;
+    tab-size: 4;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.text-editor-textarea:focus {
+    background: white;
+}
+
+.text-editor-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 20px;
+    background: #f8f9fa;
+    border-top: 1px solid #dee2e6;
+    flex-shrink: 0;
+    font-size: 12px;
+    color: #6c757d;
+}
+
+.editor-stats {
+    font-weight: 500;
+}
+
+.editor-tip {
+    font-style: italic;
+}
+
+.editor-info {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+/* 移动端文本编辑器优化 */
+@media (max-width: 768px) {
+    .text-editor-overlay {
+        padding: 10px;
+    }
+    
+    .text-editor-container {
+        max-height: calc(100vh - 20px);
+        border-radius: 8px;
+    }
+    
+    .text-editor-header {
+        padding: 12px 15px;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    
+    .editor-actions {
+        order: 2;
+        width: 100%;
+        justify-content: flex-end;
+    }
+    
+    .editor-title {
+        order: 1;
+        width: 100%;
+    }
+    
+    .editor-filename {
+        font-size: 14px;
+    }
+    
+    .text-editor-textarea {
+        padding: 15px;
+        font-size: 16px; /* 防止iOS缩放 */
+    }
+    
+    .text-editor-footer {
+        padding: 8px 15px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
+    }
+    
+    .editor-info .editor-tip {
+        display: none; /* 移动端隐藏提示 */
+    }
+}
+
+/* 超小屏幕优化 */
+@media (max-width: 480px) {
+    .text-editor-overlay {
+        padding: 5px;
+    }
+    
+    .text-editor-container {
+        border-radius: 6px;
+    }
+    
+    .editor-actions .btn {
+        padding: 6px 12px;
+        font-size: 12px;
+    }
+    
+    .close-btn {
+        padding: 6px 10px;
+        font-size: 14px;
+    }
+}
