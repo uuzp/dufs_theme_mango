@@ -2,6 +2,94 @@
 // 全局变量
 let currentPath = '/';
 let authToken = '';
+let isLoggedIn = false;
+
+// 显示登录模态框
+function showLoginModal() {
+    if (isLoggedIn) {
+        logout();
+        return;
+    }
+    
+    const modal = document.getElementById('loginModal');
+    modal.style.display = 'flex';
+    
+    // 焦点到用户名输入框
+    setTimeout(() => {
+        document.getElementById('username').focus();
+    }, 100);
+}
+
+// 关闭登录模态框
+function closeLoginModal() {
+    const modal = document.getElementById('loginModal');
+    modal.style.display = 'none';
+    
+    // 清空输入框
+    document.getElementById('username').value = '';
+    document.getElementById('password').value = '';
+}
+
+// 登录
+async function login() {
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    
+    if (!username || !password) {
+        showStatus('请输入用户名和密码', 'error');
+        return;
+    }
+    
+    try {
+        // 创建基本认证头
+        const credentials = btoa(`${username}:${password}`);
+        authToken = `Basic ${credentials}`;
+        
+        // 测试认证
+        const response = await fetch(currentPath + '?json', {
+            headers: {
+                'Authorization': authToken
+            }
+        });
+        
+        if (response.ok) {
+            isLoggedIn = true;
+            updateLoginButton();
+            closeLoginModal();
+            showStatus(`欢迎回来，${username}！`, 'success');
+            refreshFileList();
+        } else {
+            throw new Error('认证失败');
+        }
+    } catch (error) {
+        showStatus('登录失败：用户名或密码错误', 'error');
+        authToken = '';
+        isLoggedIn = false;
+    }
+}
+
+// 登出
+function logout() {
+    authToken = '';
+    isLoggedIn = false;
+    updateLoginButton();
+    showStatus('已退出登录', 'success');
+    refreshFileList();
+}
+
+// 更新登录按钮状态
+function updateLoginButton() {
+    const loginBtn = document.getElementById('loginBtn');
+    if (isLoggedIn) {
+        loginBtn.innerHTML = '👤✓';
+        loginBtn.setAttribute('data-tooltip', '点击退出登录');
+        loginBtn.style.background = '#28a745';
+    } else {
+        loginBtn.innerHTML = '👤';
+        loginBtn.setAttribute('data-tooltip', '用户登录');
+        loginBtn.style.background = '#4CAF50';
+    }
+}
 
 // 初始化
 document.addEventListener('DOMContentLoaded', function() {
@@ -175,7 +263,12 @@ async function refreshFileList() {
     clearSearchResults();
     
     try {
-        const response = await fetch(`${currentPath}?json`);
+        const headers = {};
+        if (authToken) {
+            headers['Authorization'] = authToken;
+        }
+        
+        const response = await fetch(`${currentPath}?json`, { headers });
         
         if (!response.ok) throw new Error('获取文件列表失败');
         
@@ -209,18 +302,22 @@ function displayFileList(files) {
         const isDir = file.path_type === 'Dir';
         const icon = isDir ? '📁' : getFileIcon(file.name);
         const size = isDir ? '' : formatFileSize(file.size);
-        const filePath = currentPath + (currentPath.endsWith('/') ? '' : '/') + file.name;        html += `
+        const filePath = currentPath + (currentPath.endsWith('/') ? '' : '/') + file.name;
+          // 根据设备类型选择事件处理
+        const clickHandler = isMobileDevice() 
+            ? `onclick="handleMobileDoubleClick(event, '${file.name}', ${isDir})"` 
+            : `onclick="handleFileClick('${file.name}', ${isDir})"`;
+              html += `
             <div class="file-item" 
-                 draggable="true" 
+                 ${isMobileDevice() ? '' : 'draggable="true"'} 
                  data-filename="${file.name}"
                  data-is-dir="${isDir}"
                  data-file-path="${filePath}"
-                 onclick="handleFileClick('${file.name}', ${isDir})"
+                 ${clickHandler}
                  oncontextmenu="handleRightClick(event, '${file.name}', ${isDir})"
-                 ondragstart="handleDragStart(event, '${file.name}')"
-                 ondragover="handleDragOver(event, ${isDir})"
-                 ondragleave="handleDragLeave(event, ${isDir})"
-                 ondrop="handleDrop(event, '${file.name}', ${isDir})">
+                 ${isMobileDevice() ? '' : `ondragstart="handleDragStart(event, '${file.name}')"`}                 ${isMobileDevice() ? '' : `ondragover="handleDragOver(event, ${isDir})"`}
+                 ${isMobileDevice() ? '' : `ondragleave="handleDragLeave(event, ${isDir})"`}
+                 ${isMobileDevice() ? '' : `ondrop="handleDrop(event, '${file.name}', ${isDir})"`}>
                 <div class="file-info">
                     <span class="file-icon">${icon}</span>
                     <span class="file-name">${file.name}</span>
@@ -272,9 +369,15 @@ async function uploadFiles(files) {
         uploadStatus.textContent = `上传中: ${file.name} (${i + 1}/${files.length})`;
           try {
             const uploadPath = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(file.name);
+            const headers = {};
+            if (authToken) {
+                headers['Authorization'] = authToken;
+            }
+            
             const response = await fetch(uploadPath, {
                 method: 'PUT',
-                body: file
+                body: file,
+                headers: headers
             });
             
             if (!response.ok) throw new Error(`上传失败: ${response.statusText}`);
@@ -333,21 +436,90 @@ async function getFileHash(filename) {
     }
 }
 
+// 撤销删除的相关变量
+let lastDeletedFile = null;
+let deleteTimeoutId = null;
+
 // 删除文件/文件夹
 async function deleteFile(filename) {
-    if (!confirm(`确定要删除 "${filename}" 吗？`)) return;
-    
     try {
         const url = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(filename);
         const response = await fetch(url, { method: 'DELETE' });
         
         if (!response.ok) throw new Error('删除失败');
         
-        showStatus(`成功删除 ${filename}`);
+        // 保存删除信息用于撤销
+        lastDeletedFile = {
+            filename: filename,
+            path: currentPath,
+            url: url
+        };
+        
+        // 显示可撤销的删除消息
+        showDeletionStatus(`已删除 ${filename}`, filename);
         refreshFileList();
     } catch (error) {
         showStatus('删除失败: ' + error.message, 'error');
     }
+}
+
+// 显示删除状态消息（可撤销）
+function showDeletionStatus(message, filename) {
+    const statusDiv = document.getElementById('statusMessage');
+    
+    // 清除之前的撤销计时器
+    if (deleteTimeoutId) {
+        clearTimeout(deleteTimeoutId);
+    }
+    
+    statusDiv.innerHTML = `
+        <div class="status deletion">
+            ${message}
+            <button class="undo-btn" onclick="undoDelete()">撤销</button>
+            <span class="countdown" id="deleteCountdown">5</span>
+        </div>
+    `;
+    
+    // 开始倒计时
+    let countdown = 5;
+    const countdownElement = document.getElementById('deleteCountdown');
+    
+    const countdownInterval = setInterval(() => {
+        countdown--;
+        if (countdownElement) {
+            countdownElement.textContent = countdown;
+        }
+        
+        if (countdown <= 0) {
+            clearInterval(countdownInterval);
+            statusDiv.innerHTML = '';
+            lastDeletedFile = null;
+        }
+    }, 1000);
+    
+    // 5秒后自动清除
+    deleteTimeoutId = setTimeout(() => {
+        statusDiv.innerHTML = '';
+        lastDeletedFile = null;
+        clearInterval(countdownInterval);
+    }, 5000);
+}
+
+// 撤销删除
+async function undoDelete() {
+    if (!lastDeletedFile) {
+        showStatus('没有可撤销的删除操作', 'error');
+        return;
+    }
+    
+    showStatus('撤销删除功能暂不支持，请从回收站还原', 'error');
+    
+    // 清除删除状态
+    if (deleteTimeoutId) {
+        clearTimeout(deleteTimeoutId);
+    }
+    document.getElementById('statusMessage').innerHTML = '';
+    lastDeletedFile = null;
 }
 
 // 移动文件
@@ -360,6 +532,39 @@ async function moveFile(filename) {
         const response = await fetch(oldUrl, {
             method: 'MOVE',
             headers: {
+                'Destination': window.location.origin + newPath
+            }
+        });
+        
+        if (!response.ok) throw new Error('移动失败');
+        
+        showStatus(`成功移动 ${filename} 到 ${newPath}`);
+        refreshFileList();
+    } catch (error) {
+        showStatus('移动失败: ' + error.message, 'error');
+    }
+}
+
+// 移动端移动文件（通过输入目标路径）
+async function moveFilePrompt(filename) {
+    const currentDir = currentPath === '/' ? '' : currentPath;
+    const defaultPath = currentDir + '/' + filename;
+    const newPath = prompt(`请输入 "${filename}" 的新路径:`, defaultPath);
+    
+    if (!newPath || newPath === defaultPath) return;
+    
+    try {
+        const oldUrl = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(filename);
+        
+        const headers = {};
+        if (authToken) {
+            headers['Authorization'] = authToken;
+        }
+        
+        const response = await fetch(oldUrl, {
+            method: 'MOVE',
+            headers: {
+                ...headers,
                 'Destination': window.location.origin + newPath
             }
         });
@@ -531,14 +736,93 @@ async function checkHealth() {
     }
 }
 
-// 处理文件/文件夹点击
+// 检查是否为图片文件
+function isImageFile(filename) {
+    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'];
+    const ext = filename.split('.').pop().toLowerCase();
+    return imageExtensions.includes(ext);
+}
+
+// 预览图片
+function previewImage(filename) {
+    const imageUrl = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(filename);
+    
+    // 创建预览覆盖层
+    const overlay = document.createElement('div');
+    overlay.className = 'image-preview-overlay';
+    overlay.onclick = closeImagePreview;
+    
+    overlay.innerHTML = `
+        <div class="image-preview-container">
+            <div class="image-preview-header">
+                <span class="image-title">${filename}</span>
+                <button class="close-btn" onclick="closeImagePreview()">✕</button>
+            </div>
+            <div class="image-preview-content">
+                <img src="${imageUrl}" alt="${filename}" class="preview-image" 
+                     onerror="this.parentElement.innerHTML='<div class=&quot;error-message&quot;>无法加载图片</div>'"
+                     onload="this.style.opacity='1'">
+            </div>
+            <div class="image-preview-actions">
+                <button class="btn" onclick="downloadFile('${filename}')">下载图片</button>
+                <button class="btn" onclick="window.open('${imageUrl}', '_blank')">新窗口打开</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+}
+
+// 移动端触摸处理
+let touchTimeout = null;
+let lastTouchTime = 0;
+
+// 检测是否为移动设备
+function isMobileDevice() {
+    return window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+}
+
+// 处理移动端双击
+function handleMobileDoubleClick(event, filename, isDir) {
+    const currentTime = new Date().getTime();
+    const timeDiff = currentTime - lastTouchTime;
+    
+    // 防止事件冒泡
+    event.stopPropagation();
+    
+    if (timeDiff < 300 && timeDiff > 50) {
+        // 双击 - 显示右键菜单
+        event.preventDefault();
+        clearTimeout(touchTimeout);
+        handleRightClick(event, filename, isDir);
+        lastTouchTime = 0; // 重置时间
+    } else {
+        // 单击 - 延迟执行以检测是否为双击
+        if (touchTimeout) {
+            clearTimeout(touchTimeout);
+        }
+        
+        touchTimeout = setTimeout(() => {
+            handleFileClick(filename, isDir);
+        }, 350);
+    }
+    
+    lastTouchTime = currentTime;
+}
+
+// 处理文件点击
 function handleFileClick(filename, isDir) {
     if (isDir) {
-        // 文件夹：导航进入
-        navigateTo(currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(filename));
+        // 文件夹 - 导航进入
+        const newPath = currentPath + (currentPath.endsWith('/') ? '' : '/') + filename;
+        navigateTo(newPath);
     } else {
-        // 文件：下载
-        downloadFile(filename);
+        // 文件 - 检查是否为图片
+        if (isImageFile(filename)) {
+            previewImage(filename);
+        } else {
+            downloadFile(filename);
+        }
     }
 }
 
@@ -551,20 +835,27 @@ function handleRightClick(event, filename, isDir) {
     if (existingMenu) {
         existingMenu.remove();
     }
-    
-    const contextMenu = document.createElement('div');
+      const contextMenu = document.createElement('div');
     contextMenu.id = 'contextMenu';
     contextMenu.className = 'context-menu';
     contextMenu.style.position = 'fixed';
-    contextMenu.style.left = event.clientX + 'px';
-    contextMenu.style.top = event.clientY + 'px';
     contextMenu.style.zIndex = '1000';
+    
+    // 先添加到DOM以获取尺寸
+    document.body.appendChild(contextMenu);
     
     let menuItems = '';
     
     if (!isDir) {
         // 文件的右键菜单
-        menuItems = `
+        if (isImageFile(filename)) {
+            menuItems += `
+                <div class="context-menu-item" onclick="previewImage('${filename}'); removeContextMenu();">
+                    👁️ 预览图片
+                </div>
+            `;
+        }
+        menuItems += `
             <div class="context-menu-item" onclick="downloadFile('${filename}'); removeContextMenu();">
                 📥 下载
             </div>
@@ -574,12 +865,21 @@ function handleRightClick(event, filename, isDir) {
             <div class="context-menu-separator"></div>
         `;
     }
-    
-    // 通用菜单项
+      // 通用菜单项
     menuItems += `
         <div class="context-menu-item" onclick="renameFile('${filename}'); removeContextMenu();">
             ✏️ 重命名
-        </div>
+        </div>`;
+        
+    // 移动端添加移动文件选项
+    if (isMobileDevice()) {
+        menuItems += `
+            <div class="context-menu-item" onclick="moveFilePrompt('${filename}'); removeContextMenu();">
+                📁 移动文件
+            </div>`;
+    }
+    
+    menuItems += `
         <div class="context-menu-item" onclick="getFileInfo('${filename}'); removeContextMenu();">
             ℹ️ 属性
         </div>
@@ -587,11 +887,32 @@ function handleRightClick(event, filename, isDir) {
         <div class="context-menu-item context-menu-danger" onclick="deleteFile('${filename}'); removeContextMenu();">
             🗑️ 删除
         </div>
-    `;
+    `;    contextMenu.innerHTML = menuItems;
     
-    contextMenu.innerHTML = menuItems;
+    // 计算菜单位置，避免超出屏幕
+    const menuRect = contextMenu.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
     
-    document.body.appendChild(contextMenu);
+    let left = event.clientX;
+    let top = event.clientY;
+    
+    // 确保菜单不会超出右边界
+    if (left + menuRect.width > viewportWidth) {
+        left = viewportWidth - menuRect.width - 10;
+    }
+    
+    // 确保菜单不会超出底部边界
+    if (top + menuRect.height > viewportHeight) {
+        top = viewportHeight - menuRect.height - 10;
+    }
+    
+    // 确保菜单不会超出左边界和顶部边界
+    left = Math.max(10, left);
+    top = Math.max(10, top);
+    
+    contextMenu.style.left = left + 'px';
+    contextMenu.style.top = top + 'px';
     
     // 点击其他地方关闭菜单
     setTimeout(() => {
@@ -604,6 +925,45 @@ function removeContextMenu() {
     const menu = document.getElementById('contextMenu');
     if (menu) {
         menu.remove();
+    }
+}
+
+// 重命名文件
+async function renameFile(oldName) {
+    const newName = prompt(`请输入新的文件名:`, oldName);
+    if (!newName || newName === oldName) return;
+    
+    try {
+        const oldUrl = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(oldName);
+        const newUrl = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(newName);
+        
+        const headers = {};
+        if (authToken) {
+            headers['Authorization'] = authToken;
+        }
+        
+        const response = await fetch(oldUrl, {
+            method: 'MOVE',
+            headers: {
+                ...headers,
+                'Destination': window.location.origin + newUrl
+            }
+        });
+        
+        if (!response.ok) throw new Error('重命名失败');
+        
+        showStatus(`成功将 ${oldName} 重命名为 ${newName}`);
+        refreshFileList();
+    } catch (error) {
+        showStatus('重命名失败: ' + error.message, 'error');
+    }
+}
+
+// 关闭图片预览
+function closeImagePreview() {
+    const overlay = document.querySelector('.image-preview-overlay');
+    if (overlay) {
+        overlay.remove();
     }
 }
 
@@ -658,16 +1018,23 @@ async function handleDrop(event, targetFolderName, isTargetDir) {
         showStatus('不能将文件夹移动到自己内部', 'error');
         return;
     }
-      // 重置拖拽状态
+    
+    // 重置拖拽状态
     draggedItem = null;
     
     try {
         const oldUrl = sourcePath + (sourcePath.endsWith('/') ? '' : '/') + encodeURIComponent(sourceFile);
         const newUrl = targetPath + '/' + encodeURIComponent(sourceFile);
         
+        const headers = {};
+        if (authToken) {
+            headers['Authorization'] = authToken;
+        }
+        
         const response = await fetch(oldUrl, {
             method: 'MOVE',
             headers: {
+                ...headers,
                 'Destination': window.location.origin + newUrl
             }
         });
@@ -678,53 +1045,6 @@ async function handleDrop(event, targetFolderName, isTargetDir) {
         refreshFileList();
     } catch (error) {
         showStatus('移动失败: ' + error.message, 'error');
-    }
-}
-
-// 重命名文件
-async function renameFile(oldName) {
-    const newName = prompt(`请输入新的文件名:`, oldName);
-    if (!newName || newName === oldName) return;
-      try {
-        const oldUrl = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(oldName);
-        const newUrl = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(newName);
-        
-        const response = await fetch(oldUrl, {
-            method: 'MOVE',
-            headers: {
-                'Destination': window.location.origin + newUrl
-            }
-        });
-        
-        if (!response.ok) throw new Error('重命名失败');
-        
-        showStatus(`成功将 ${oldName} 重命名为 ${newName}`);
-        refreshFileList();
-    } catch (error) {
-        showStatus('重命名失败: ' + error.message, 'error');
-    }
-}
-
-// 获取文件信息
-async function getFileInfo(filename) {
-    try {
-        const url = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(filename);
-        const response = await fetch(url, { method: 'HEAD' });
-        
-        if (!response.ok) throw new Error('获取文件信息失败');
-        
-        const size = response.headers.get('content-length');
-        const lastModified = response.headers.get('last-modified');
-        const contentType = response.headers.get('content-type');
-        
-        let info = `文件名: ${filename}\n`;
-        if (size) info += `大小: ${formatFileSize(parseInt(size))}\n`;
-        if (lastModified) info += `修改时间: ${new Date(lastModified).toLocaleString()}\n`;
-        if (contentType) info += `类型: ${contentType}`;
-        
-        alert(info);
-    } catch (error) {
-        showStatus('获取文件信息失败: ' + error.message, 'error');
     }
 }
 
@@ -756,7 +1076,8 @@ async function handleBreadcrumbDrop(event, targetPath) {
         showStatus('文件已在该位置', 'error');
         return;
     }
-      // 重置拖拽状态
+    
+    // 重置拖拽状态
     draggedItem = null;
     
     try {
@@ -766,6 +1087,7 @@ async function handleBreadcrumbDrop(event, targetPath) {
         const response = await fetch(oldUrl, {
             method: 'MOVE',
             headers: {
+                ...headers,
                 'Destination': window.location.origin + newUrl
             }
         });
@@ -778,3 +1100,10 @@ async function handleBreadcrumbDrop(event, targetPath) {
         showStatus('移动失败: ' + error.message, 'error');
     }
 }
+
+// 调试：在控制台显示设备类型
+console.log('设备类型检测:', {
+    isMobile: isMobileDevice(),
+    userAgent: navigator.userAgent,
+    windowWidth: window.innerWidth
+});

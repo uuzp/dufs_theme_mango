@@ -37,9 +37,7 @@
                 <div class="breadcrumb" id="breadcrumb">
                     <a href="#" onclick="navigateTo('/')">/</a>
                 </div>
-            </div>
-
-            <!-- 工具按钮组 -->
+            </div>            <!-- 工具按钮组 -->
             <div class="tool-buttons">
                 <button class="icon-btn" onclick="refreshFileList()" data-tooltip="刷新文件列表">
                     🔄
@@ -55,6 +53,9 @@
                 </button>
                 <button class="icon-btn" onclick="checkHealth()" data-tooltip="系统健康检查">
                     ❤️
+                </button>
+                <button class="icon-btn" id="loginBtn" onclick="showLoginModal()" data-tooltip="用户登录">
+                    👤
                 </button>
             </div>
 
@@ -102,10 +103,32 @@
             <h2>拖拽文件到这里上传</h2>
             <p>支持多个文件同时上传</p>
         </div>
-    </div>
-
-    <!-- 隐藏的文件输入 -->
+    </div>    <!-- 隐藏的文件输入 -->
     <input type="file" id="fileInput" multiple style="display: none;">
+
+    <!-- 登录模态框 -->
+    <div id="loginModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🔐 用户登录</h3>
+                <button class="close-btn" onclick="closeLoginModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="input-group">
+                    <label for="username">用户名:</label>
+                    <input type="text" id="username" placeholder="请输入用户名">
+                </div>
+                <div class="input-group">
+                    <label for="password">密码:</label>
+                    <input type="password" id="password" placeholder="请输入密码">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeLoginModal()">取消</button>
+                <button class="btn btn-primary" onclick="login()">登录</button>
+            </div>
+        </div>
+    </div>
 
     <!-- 状态消息 -->
     <div id="statusMessage"></div>
