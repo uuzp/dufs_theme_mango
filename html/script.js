@@ -210,12 +210,85 @@ function setupEventListeners() {
         if (e.target.value.trim() === '') {
             clearSearchResults();
         }
-    });
-
-    // 面包屑拖拽离开事件
+    });    // 面包屑拖拽离开事件
     document.addEventListener('dragleave', (e) => {
         if (e.target.classList.contains('breadcrumb-item')) {
             e.target.classList.remove('breadcrumb-drag-over');
+        }
+    });
+
+    // 键盘快捷键
+    document.addEventListener('keydown', (e) => {
+        // 如果用户正在输入，不处理快捷键
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+            return;
+        }
+
+        // Ctrl/Cmd + U: 上传文件
+        if ((e.ctrlKey || e.metaKey) && e.key === 'u') {
+            e.preventDefault();
+            document.getElementById('fileInput').click();
+            showStatus('打开文件上传对话框', 'success', 2000);
+        }
+        
+        // F5 或 Ctrl/Cmd + R: 刷新文件列表
+        else if (e.key === 'F5' || ((e.ctrlKey || e.metaKey) && e.key === 'r')) {
+            e.preventDefault();
+            refreshFileList();
+            showStatus('已刷新文件列表', 'success', 2000);
+        }
+        
+        // Ctrl/Cmd + F: 聚焦搜索框
+        else if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+            e.preventDefault();
+            const searchInput = document.getElementById('searchInput');
+            searchInput.focus();
+            searchInput.select();
+            showStatus('聚焦到搜索框', 'success', 2000);
+        }
+        
+        // Escape: 关闭所有模态框和菜单
+        else if (e.key === 'Escape') {
+            // 关闭登录模态框
+            const loginModal = document.getElementById('loginModal');
+            if (loginModal && loginModal.style.display !== 'none') {
+                closeLoginModal();
+            }
+            
+            // 关闭右键菜单
+            removeContextMenu();
+            
+            // 关闭图片预览
+            closeImagePreview();
+            
+            // 清空搜索
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput && searchInput.value.trim() !== '') {
+                clearSearchResults();
+                showStatus('清空搜索结果', 'success', 2000);
+            }
+        }
+        
+        // 返回上一级 (Backspace 或 Alt + ←)
+        else if (e.key === 'Backspace' || (e.altKey && e.key === 'ArrowLeft')) {
+            e.preventDefault();
+            if (currentPath !== '/') {
+                const parentPath = currentPath.split('/').slice(0, -1).join('/') || '/';
+                navigateTo(parentPath);
+                showStatus('返回上一级目录', 'success', 2000);
+            }
+        }
+        
+        // Ctrl/Cmd + Shift + N: 新建文件夹
+        else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'N') {
+            e.preventDefault();
+            createFolder();
+        }
+        
+        // Ctrl/Cmd + D: 下载当前文件夹为ZIP
+        else if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+            e.preventDefault();
+            downloadAsZip();
         }
     });
 }
@@ -838,6 +911,14 @@ function isImageFile(filename) {
     return imageExtensions.includes(ext);
 }
 
+// 检查是否为压缩文件
+function isArchiveFile(filename) {
+    const archiveExtensions = ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'tar.gz', 'tar.bz2', 'tar.xz'];
+    const ext = filename.toLowerCase();
+    // 检查常见的压缩文件扩展名
+    return archiveExtensions.some(extension => ext.endsWith('.' + extension));
+}
+
 // 预览图片
 function previewImage(filename) {
     const imageUrl = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(filename);
@@ -940,8 +1021,7 @@ function handleRightClick(event, filename, isDir) {
     document.body.appendChild(contextMenu);
     
     let menuItems = '';
-    
-    if (!isDir) {
+      if (!isDir) {
         // 文件的右键菜单
         if (isImageFile(filename)) {
             menuItems += `
@@ -950,6 +1030,16 @@ function handleRightClick(event, filename, isDir) {
                 </div>
             `;
         }
+        
+        // 压缩文件添加解压缩选项
+        if (isArchiveFile(filename)) {
+            menuItems += `
+                <div class="context-menu-item" onclick="extractArchive('${filename}'); removeContextMenu();">
+                    📦 解压缩
+                </div>
+            `;
+        }
+        
         menuItems += `
             <div class="context-menu-item" onclick="downloadFile('${filename}'); removeContextMenu();">
                 📥 下载
@@ -1216,6 +1306,199 @@ async function handleBreadcrumbDrop(event, targetPath) {
         refreshFileList();
     } catch (error) {
         showStatus('移动失败: ' + error.message, 'error');
+    }
+}
+
+// 解压缩文件
+async function extractArchive(filename) {
+    // 权限检查
+    if (!requireAuth('解压缩文件')) {
+        return;
+    }
+    
+    const ext = filename.toLowerCase();
+    
+    // 目前仅支持 ZIP 文件的客户端解压缩
+    if (!ext.endsWith('.zip')) {
+        const supportedFormat = ext.endsWith('.zip') ? 'ZIP' : 
+                               ext.endsWith('.rar') ? 'RAR' : 
+                               ext.endsWith('.7z') ? '7Z' : 
+                               ext.endsWith('.tar') ? 'TAR' : 
+                               ext.endsWith('.gz') ? 'GZ' : 'Unknown';
+        showStatus(`暂不支持 ${supportedFormat} 格式的解压缩，目前仅支持 ZIP 文件`, 'error');
+        return;
+    }
+    
+    // 询问用户解压缩到哪个目录
+    const defaultExtractPath = filename.substring(0, filename.lastIndexOf('.'));
+    const extractFolderName = prompt(`请输入解压缩目标文件夹名称:`, defaultExtractPath);
+    
+    if (!extractFolderName) return;
+    
+    // 验证文件夹名称
+    if (extractFolderName.includes('/') || extractFolderName.includes('\\') || extractFolderName.includes('..')) {
+        showStatus('文件夹名称不能包含路径分隔符或相对路径', 'error');
+        return;
+    }
+    
+    try {
+        showStatus('正在下载并解压缩ZIP文件，请稍候...', 'success');
+        
+        // 下载ZIP文件
+        const zipUrl = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(filename);
+        const headers = {};
+        if (authToken) {
+            headers['Authorization'] = authToken;
+        }
+        
+        const response = await fetch(zipUrl, {
+            headers,
+            credentials: 'omit'
+        });
+        
+        if (!response.ok) {
+            if (response.status === 404) {
+                throw new Error('ZIP文件不存在');
+            } else if (response.status === 403) {
+                throw new Error('没有权限访问ZIP文件');
+            } else {
+                throw new Error(`下载ZIP文件失败 (${response.status})`);
+            }
+        }
+        
+        const zipArrayBuffer = await response.arrayBuffer();
+        
+        // 检查文件大小
+        if (zipArrayBuffer.byteLength === 0) {
+            throw new Error('ZIP文件为空');
+        }
+        
+        // 检查是否有JSZip库可用
+        if (typeof JSZip === 'undefined') {
+            showStatus('解压缩功能需要JSZip库支持。请检查网络连接后刷新页面重试。', 'error');
+            return;
+        }        
+        // 使用JSZip解压缩
+        const zip = new JSZip();
+        let zipData;
+        
+        try {
+            zipData = await zip.loadAsync(zipArrayBuffer);
+        } catch (error) {
+            throw new Error('ZIP文件格式错误或已损坏');
+        }
+        
+        // 检查ZIP文件是否为空
+        const allFiles = Object.keys(zipData.files);
+        if (allFiles.length === 0) {
+            throw new Error('ZIP文件中没有任何文件');
+        }
+        
+        // 先创建目标文件夹
+        const createResult = await createFolderSilent(extractFolderName);
+        if (!createResult) {
+            // 如果创建失败，检查是否是因为文件夹已存在
+            const confirmOverwrite = confirm(`文件夹 "${extractFolderName}" 已存在，是否继续解压缩？可能会覆盖同名文件。`);
+            if (!confirmOverwrite) {
+                showStatus('解压缩已取消', 'error');
+                return;
+            }
+        }
+        
+        const extractPath = currentPath + (currentPath.endsWith('/') ? '' : '/') + extractFolderName;
+        let extractedCount = 0;
+        let failedCount = 0;
+        let totalFiles = Object.keys(zipData.files).filter(path => !zipData.files[path].dir).length;
+        
+        if (totalFiles === 0) {
+            showStatus('ZIP文件中没有可解压缩的文件', 'error');
+            return;
+        }
+        
+        showStatus(`发现 ${totalFiles} 个文件，开始解压缩...`, 'success');
+        
+        // 收集所有需要创建的目录
+        const dirsToCreate = new Set();
+        Object.keys(zipData.files).forEach(relativePath => {
+            const pathParts = relativePath.split('/');
+            let currentPath = '';
+            for (let i = 0; i < pathParts.length - 1; i++) {
+                currentPath += pathParts[i] + '/';
+                dirsToCreate.add(currentPath);
+            }
+        });
+        
+        // 创建目录结构
+        for (const dirPath of Array.from(dirsToCreate).sort()) {
+            if (dirPath) {
+                await createFolderSilent(extractFolderName + '/' + dirPath.slice(0, -1));
+            }
+        }
+        
+        // 解压缩每个文件
+        for (const [relativePath, zipEntry] of Object.entries(zipData.files)) {
+            if (!zipEntry.dir) {
+                try {
+                    const fileContent = await zipEntry.async('blob');
+                    const fileUrl = extractPath + '/' + encodeURIComponent(relativePath);
+                    
+                    const uploadResponse = await fetch(fileUrl, {
+                        method: 'PUT',
+                        body: fileContent,
+                        headers: {
+                            'Authorization': authToken
+                        },
+                        credentials: 'omit'
+                    });
+                    
+                    if (uploadResponse.ok) {
+                        extractedCount++;
+                        showStatus(`正在解压缩: ${extractedCount}/${totalFiles} - ${relativePath}`, 'success');
+                    } else {
+                        failedCount++;
+                        console.warn(`Failed to upload ${relativePath}: ${uploadResponse.status}`);
+                    }
+                } catch (error) {
+                    failedCount++;
+                    console.warn(`Failed to extract ${relativePath}:`, error);
+                }
+            }
+        }
+        
+        // 显示最终结果
+        if (failedCount === 0) {
+            showStatus(`✅ 成功解压缩 ${extractedCount} 个文件到文件夹 "${extractFolderName}"`, 'success', 5000);
+        } else {
+            showStatus(`⚠️ 解压缩完成：成功 ${extractedCount} 个，失败 ${failedCount} 个文件`, 'warning', 5000);
+        }
+        refreshFileList();
+        
+    } catch (error) {
+        showStatus('解压缩失败: ' + error.message, 'error');
+        console.error('Extract error:', error);
+    }
+}
+
+// 静默创建文件夹（不显示成功消息）
+async function createFolderSilent(folderName) {
+    try {
+        const url = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(folderName);
+        const response = await fetch(url, { 
+            method: 'MKCOL',
+            headers: {
+                'Authorization': authToken
+            },
+            credentials: 'omit'
+        });
+        
+        if (!response.ok && response.status !== 409) { // 409表示文件夹已存在
+            throw new Error('创建文件夹失败');
+        }
+        
+        return true;
+    } catch (error) {
+        console.warn('Create folder warning:', error);
+        return false;
     }
 }
 
