@@ -4,6 +4,15 @@ let currentPath = '/';
 let authToken = '';
 let isLoggedIn = false;
 
+// 权限检查函数
+function requireAuth(operation = '此操作') {
+    if (!isLoggedIn) {
+        showStatus(`${operation}需要登录权限，请先登录`, 'error');
+        return false;
+    }
+    return true;
+}
+
 // 显示登录模态框
 function showLoginModal() {
     if (isLoggedIn) {
@@ -43,28 +52,32 @@ async function login() {
     try {
         // 创建基本认证头
         const credentials = btoa(`${username}:${password}`);
-        authToken = `Basic ${credentials}`;
+        const testAuthToken = `Basic ${credentials}`;
         
-        // 测试认证
+        // 测试认证 - 不让浏览器弹出认证对话框
         const response = await fetch(currentPath + '?json', {
             headers: {
-                'Authorization': authToken
-            }
+                'Authorization': testAuthToken
+            },
+            // 防止浏览器弹出认证对话框
+            credentials: 'omit'
         });
         
         if (response.ok) {
+            authToken = testAuthToken;
             isLoggedIn = true;
             updateLoginButton();
             closeLoginModal();
             showStatus(`欢迎回来，${username}！`, 'success');
             refreshFileList();
+        } else if (response.status === 401) {
+            showStatus('登录失败：用户名或密码错误', 'error');
         } else {
-            throw new Error('认证失败');
+            showStatus(`登录失败：服务器错误 (${response.status})`, 'error');
         }
     } catch (error) {
-        showStatus('登录失败：用户名或密码错误', 'error');
-        authToken = '';
-        isLoggedIn = false;
+        showStatus('登录失败：网络连接错误', 'error');
+        console.error('Login error:', error);
     }
 }
 
@@ -268,7 +281,10 @@ async function refreshFileList() {
             headers['Authorization'] = authToken;
         }
         
-        const response = await fetch(`${currentPath}?json`, { headers });
+        const response = await fetch(`${currentPath}?json`, { 
+            headers,
+            credentials: 'omit'
+        });
         
         if (!response.ok) throw new Error('获取文件列表失败');
         
@@ -356,6 +372,11 @@ function formatFileSize(bytes) {
 
 // 上传文件
 async function uploadFiles(files) {
+    // 权限检查
+    if (!requireAuth('文件上传')) {
+        return;
+    }
+    
     const progressDiv = document.getElementById('uploadProgress');
     const progressBar = document.getElementById('progressBar');
     const uploadStatus = document.getElementById('uploadStatus');
@@ -367,22 +388,29 @@ async function uploadFiles(files) {
         const progress = ((i + 1) / files.length) * 100;
         progressBar.style.width = progress + '%';
         uploadStatus.textContent = `上传中: ${file.name} (${i + 1}/${files.length})`;
-          try {
+        
+        try {
             const uploadPath = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(file.name);
-            const headers = {};
-            if (authToken) {
-                headers['Authorization'] = authToken;
-            }
+            const headers = {
+                'Authorization': authToken
+            };
             
             const response = await fetch(uploadPath, {
                 method: 'PUT',
                 body: file,
-                headers: headers
+                headers: headers,
+                credentials: 'omit'
             });
             
-            if (!response.ok) throw new Error(`上传失败: ${response.statusText}`);
+            if (response.status === 401) {
+                throw new Error('权限不足，请重新登录');
+            } else if (!response.ok) {
+                throw new Error(`上传失败: ${response.statusText}`);
+            }
         } catch (error) {
             showStatus(`上传 ${file.name} 失败: ${error.message}`, 'error');
+            progressDiv.style.display = 'none';
+            return;
         }
     }
     
@@ -420,7 +448,15 @@ async function getFileHash(filename) {
         const url = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(filename) + '?hash';
         console.log('Fetching hash from URL:', url);
         
-        const response = await fetch(url);
+        const headers = {};
+        if (authToken) {
+            headers['Authorization'] = authToken;
+        }
+        
+        const response = await fetch(url, {
+            headers,
+            credentials: 'omit'
+        });
         console.log('Hash response status:', response.status);
         
         if (!response.ok) throw new Error('获取哈希失败');
@@ -442,9 +478,25 @@ let deleteTimeoutId = null;
 
 // 删除文件/文件夹
 async function deleteFile(filename) {
+    // 权限检查
+    if (!requireAuth('删除文件')) {
+        return;
+    }
+    
     try {
         const url = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(filename);
-        const response = await fetch(url, { method: 'DELETE' });
+        const response = await fetch(url, { 
+            method: 'DELETE',
+            headers: {
+                'Authorization': authToken
+            },
+            credentials: 'omit'
+        });
+        
+        if (response.status === 401) {
+            showStatus('权限不足，请重新登录', 'error');
+            return;
+        }
         
         if (!response.ok) throw new Error('删除失败');
         
@@ -524,6 +576,11 @@ async function undoDelete() {
 
 // 移动文件
 async function moveFile(filename) {
+    // 权限检查
+    if (!requireAuth('移动文件')) {
+        return;
+    }
+    
     const newPath = prompt(`请输入 "${filename}" 的新路径:`, currentPath + '/' + filename);
     if (!newPath || newPath === currentPath + '/' + filename) return;
     
@@ -532,9 +589,16 @@ async function moveFile(filename) {
         const response = await fetch(oldUrl, {
             method: 'MOVE',
             headers: {
+                'Authorization': authToken,
                 'Destination': window.location.origin + newPath
-            }
+            },
+            credentials: 'omit'
         });
+        
+        if (response.status === 401) {
+            showStatus('权限不足，请重新登录', 'error');
+            return;
+        }
         
         if (!response.ok) throw new Error('移动失败');
         
@@ -547,6 +611,11 @@ async function moveFile(filename) {
 
 // 移动端移动文件（通过输入目标路径）
 async function moveFilePrompt(filename) {
+    // 权限检查
+    if (!requireAuth('移动文件')) {
+        return;
+    }
+    
     const currentDir = currentPath === '/' ? '' : currentPath;
     const defaultPath = currentDir + '/' + filename;
     const newPath = prompt(`请输入 "${filename}" 的新路径:`, defaultPath);
@@ -556,18 +625,19 @@ async function moveFilePrompt(filename) {
     try {
         const oldUrl = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(filename);
         
-        const headers = {};
-        if (authToken) {
-            headers['Authorization'] = authToken;
-        }
-        
         const response = await fetch(oldUrl, {
             method: 'MOVE',
             headers: {
-                ...headers,
+                'Authorization': authToken,
                 'Destination': window.location.origin + newPath
-            }
+            },
+            credentials: 'omit'
         });
+        
+        if (response.status === 401) {
+            showStatus('权限不足，请重新登录', 'error');
+            return;
+        }
         
         if (!response.ok) throw new Error('移动失败');
         
@@ -580,12 +650,28 @@ async function moveFilePrompt(filename) {
 
 // 创建文件夹
 async function createFolder() {
+    // 权限检查
+    if (!requireAuth('创建文件夹')) {
+        return;
+    }
+    
     const folderName = prompt('请输入文件夹名称:');
     if (!folderName) return;
     
     try {
         const url = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(folderName);
-        const response = await fetch(url, { method: 'MKCOL' });
+        const response = await fetch(url, { 
+            method: 'MKCOL',
+            headers: {
+                'Authorization': authToken
+            },
+            credentials: 'omit'
+        });
+        
+        if (response.status === 401) {
+            showStatus('权限不足，请重新登录', 'error');
+            return;
+        }
         
         if (!response.ok) throw new Error('创建文件夹失败');
         
@@ -606,7 +692,16 @@ async function searchFiles() {
     }
     
     try {
-        const response = await fetch(`${currentPath}?q=${encodeURIComponent(query)}&json`);
+        const headers = {};
+        if (authToken) {
+            headers['Authorization'] = authToken;
+        }
+        
+        const response = await fetch(`${currentPath}?q=${encodeURIComponent(query)}&json`, {
+            headers,
+            credentials: 'omit'
+        });
+        
         if (!response.ok) throw new Error('搜索失败');
         
         const results = await response.json();
@@ -930,6 +1025,11 @@ function removeContextMenu() {
 
 // 重命名文件
 async function renameFile(oldName) {
+    // 权限检查
+    if (!requireAuth('重命名文件')) {
+        return;
+    }
+    
     const newName = prompt(`请输入新的文件名:`, oldName);
     if (!newName || newName === oldName) return;
     
@@ -937,18 +1037,19 @@ async function renameFile(oldName) {
         const oldUrl = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(oldName);
         const newUrl = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(newName);
         
-        const headers = {};
-        if (authToken) {
-            headers['Authorization'] = authToken;
-        }
-        
         const response = await fetch(oldUrl, {
             method: 'MOVE',
             headers: {
-                ...headers,
+                'Authorization': authToken,
                 'Destination': window.location.origin + newUrl
-            }
+            },
+            credentials: 'omit'
         });
+        
+        if (response.status === 401) {
+            showStatus('权限不足，请重新登录', 'error');
+            return;
+        }
         
         if (!response.ok) throw new Error('重命名失败');
         
@@ -1009,6 +1110,11 @@ async function handleDrop(event, targetFolderName, isTargetDir) {
     
     if (!isTargetDir || !draggedItem) return;
     
+    // 权限检查
+    if (!requireAuth('移动文件')) {
+        return;
+    }
+    
     const sourceFile = draggedItem.filename;
     const sourcePath = draggedItem.sourcePath;
     const targetPath = currentPath + (currentPath.endsWith('/') ? '' : '/') + targetFolderName;
@@ -1026,18 +1132,19 @@ async function handleDrop(event, targetFolderName, isTargetDir) {
         const oldUrl = sourcePath + (sourcePath.endsWith('/') ? '' : '/') + encodeURIComponent(sourceFile);
         const newUrl = targetPath + '/' + encodeURIComponent(sourceFile);
         
-        const headers = {};
-        if (authToken) {
-            headers['Authorization'] = authToken;
-        }
-        
         const response = await fetch(oldUrl, {
             method: 'MOVE',
             headers: {
-                ...headers,
+                'Authorization': authToken,
                 'Destination': window.location.origin + newUrl
-            }
+            },
+            credentials: 'omit'
         });
+        
+        if (response.status === 401) {
+            showStatus('权限不足，请重新登录', 'error');
+            return;
+        }
         
         if (!response.ok) throw new Error('移动失败');
         
@@ -1068,6 +1175,11 @@ async function handleBreadcrumbDrop(event, targetPath) {
     
     if (!draggedItem) return;
     
+    // 权限检查
+    if (!requireAuth('移动文件')) {
+        return;
+    }
+    
     const sourceFile = draggedItem.filename;
     const sourcePath = draggedItem.sourcePath;
     
@@ -1087,10 +1199,16 @@ async function handleBreadcrumbDrop(event, targetPath) {
         const response = await fetch(oldUrl, {
             method: 'MOVE',
             headers: {
-                ...headers,
+                'Authorization': authToken,
                 'Destination': window.location.origin + newUrl
-            }
+            },
+            credentials: 'omit'
         });
+        
+        if (response.status === 401) {
+            showStatus('权限不足，请重新登录', 'error');
+            return;
+        }
         
         if (!response.ok) throw new Error('移动失败');
         
