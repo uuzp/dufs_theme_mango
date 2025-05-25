@@ -1,6 +1,6 @@
 # 🥭 Mango - Dufs 现代化主题
 
-[![Version](https://img.shields.io/badge/version-v0.1.1-brightgreen.svg)](https://github.com/uuzp/dufs_theme_mango/releases)
+[![Version](https://img.shields.io/badge/version-v0.2.1-brightgreen.svg)](https://github.com/uuzp/dufs_theme_mango/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ![Preview](Preview.png)
@@ -15,11 +15,18 @@
 - **单击操作**：单击文件下载，单击文件夹进入
 - **右键菜单**：丰富的上下文菜单操作（下载、哈希、重命名、属性、删除）
 - **拖拽移动**：在文件夹间拖拽移动文件，支持面包屑导航拖拽
+- **解压缩功能**：右键点击ZIP文件即可解压缩，支持目录结构保持
 
 ### 📤 智能上传系统
 - **拖拽上传**：将文件拖拽到页面任意位置即可上传
 - **批量上传**：支持多文件同时上传
 - **进度显示**：实时显示上传进度
+
+### 📦 压缩文件支持
+- **ZIP解压缩**：支持客户端ZIP文件解压缩
+- **格式识别**：自动识别多种压缩文件格式（zip、rar、7z等）
+- **文件夹打包**：一键下载当前文件夹为ZIP压缩包
+- **进度反馈**：实时显示解压缩进度和状态
 
 ### 🔍 快速搜索
 - **即时搜索**：输入关键词快速搜索文件
@@ -131,6 +138,15 @@ compress: medium          # 压缩级别
 ### 文件哈希
 - **获取哈希**：右键点击文件，选择"获取哈希"
 - **复制哈希**：在底部状态栏点击"复制哈希值"按钮
+
+### ⌨️ 键盘快捷键
+- **Ctrl/Cmd + U**：上传文件
+- **F5 / Ctrl/Cmd + R**：刷新文件列表
+- **Ctrl/Cmd + F**：聚焦搜索框
+- **Escape**：关闭模态框/菜单/清空搜索
+- **Backspace / Alt + ←**：返回上一级目录
+- **Ctrl/Cmd + Shift + N**：新建文件夹
+- **Ctrl/Cmd + D**：下载当前文件夹为ZIP
 
 ## 🌐 访问地址
 
