@@ -367,9 +367,11 @@ function showBatchOperationButtons() {
             <div class="batch-actions">
                 <button class="btn btn-danger" onclick="deleteSelectedFiles()" id="batchDeleteBtn" disabled>
                     🗑️ 删除选中
-                </button>
-                <button class="btn btn-primary" onclick="downloadSelectedFiles()" id="batchDownloadBtn" disabled>
+                </button>                <button class="btn btn-primary" onclick="downloadSelectedFiles()" id="batchDownloadBtn" disabled>
                     📥 下载选中
+                </button>
+                <button class="btn btn-success" onclick="downloadSelectedAsZip()" id="batchZipBtn" disabled>
+                    📦 打包为ZIP
                 </button>
                 <button class="btn btn-warning" onclick="moveSelectedFiles()" id="batchMoveBtn" disabled>
                     📁 移动选中
@@ -426,15 +428,16 @@ function updateSelectionUI() {
     if (selectedCountElement) {
         selectedCountElement.textContent = `已选择 ${selectedCount} 个文件`;
     }
-    
-    // 更新批量操作按钮状态
+      // 更新批量操作按钮状态
     const hasSelection = selectedCount > 0;
     const batchDeleteBtn = document.getElementById('batchDeleteBtn');
     const batchDownloadBtn = document.getElementById('batchDownloadBtn');
+    const batchZipBtn = document.getElementById('batchZipBtn');
     const batchMoveBtn = document.getElementById('batchMoveBtn');
     
     if (batchDeleteBtn) batchDeleteBtn.disabled = !hasSelection;
     if (batchDownloadBtn) batchDownloadBtn.disabled = !hasSelection;
+    if (batchZipBtn) batchZipBtn.disabled = !hasSelection;
     if (batchMoveBtn) batchMoveBtn.disabled = !hasSelection;
 }
 
@@ -554,6 +557,106 @@ function downloadSelectedFiles() {
             
             showStatus(`开始下载 ${fileNames.length} 个文件...`, 'success', 3000);
         }
+    }
+}
+
+// 下载选中文件为ZIP
+async function downloadSelectedAsZip() {
+    if (!isMultiSelectMode || selectedFiles.size === 0) return;
+    
+    const fileNames = Array.from(selectedFiles);
+    
+    // 检查是否有JSZip库可用
+    if (typeof JSZip === 'undefined') {
+        showStatus('ZIP功能需要JSZip库支持。将改为逐个下载文件。', 'warning', 3000);
+        downloadSelectedFiles();
+        return;
+    }
+    
+    showStatus('正在创建ZIP文件，请稍候...', 'success');
+    
+    try {
+        const zip = new JSZip();
+        let successCount = 0;
+        let failCount = 0;
+        
+        // 遍历选中的文件并添加到ZIP
+        for (const filename of fileNames) {
+            try {
+                const fileUrl = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(filename);
+                
+                const headers = {};
+                if (authToken) {
+                    headers['Authorization'] = authToken;
+                }
+                
+                const response = await fetch(fileUrl, {
+                    headers,
+                    credentials: 'omit'
+                });
+                
+                if (!response.ok) {
+                    failCount++;
+                    console.warn(`Failed to fetch ${filename}: ${response.status}`);
+                    continue;
+                }
+                
+                // 检查是否是文件夹（通过Content-Type判断）
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('text/html')) {
+                    // 这可能是一个文件夹的HTML页面，跳过
+                    failCount++;
+                    console.warn(`Skipping directory: ${filename}`);
+                    continue;
+                }
+                
+                const fileBlob = await response.blob();
+                zip.file(filename, fileBlob);
+                successCount++;
+                
+                showStatus(`正在打包: ${successCount}/${fileNames.length} - ${filename}`, 'success');
+            } catch (error) {
+                failCount++;
+                console.error(`Error processing ${filename}:`, error);
+            }
+        }
+        
+        if (successCount === 0) {
+            showStatus('没有文件可以打包', 'error');
+            return;
+        }
+        
+        // 生成ZIP文件
+        showStatus('正在生成ZIP文件...', 'success');
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        
+        // 创建下载链接
+        const zipUrl = window.URL.createObjectURL(zipBlob);
+        const link = document.createElement('a');
+        link.href = zipUrl;
+        
+        // 生成ZIP文件名
+        const currentDir = currentPath === '/' ? 'root' : currentPath.split('/').pop() || 'selected';
+        link.download = `${currentDir}_selected_files.zip`;
+        link.style.display = 'none';
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // 清理内存
+        window.URL.revokeObjectURL(zipUrl);
+        
+        // 显示结果
+        if (failCount === 0) {
+            showStatus(`✅ 成功创建ZIP文件，包含 ${successCount} 个文件`, 'success', 4000);
+        } else {
+            showStatus(`⚠️ ZIP创建完成：成功 ${successCount} 个，跳过 ${failCount} 个文件`, 'warning', 4000);
+        }
+        
+    } catch (error) {
+        console.error('ZIP creation error:', error);
+        showStatus('创建ZIP文件失败: ' + error.message, 'error');
     }
 }
 
@@ -1345,9 +1448,15 @@ function clearSearchResults() {
 
 // 下载当前文件夹为ZIP
 function downloadAsZip() {
-    const url = currentPath + '?zip';
-    window.open(url, '_blank');
-    showStatus('正在下载ZIP文件...');
+    // 如果在多选模式下且有选中文件，则只打包选中文件
+    if (isMultiSelectMode && selectedFiles.size > 0) {
+        downloadSelectedAsZip();
+    } else {
+        // 下载整个目录
+        const url = currentPath + '?zip';
+        window.open(url, '_blank');
+        showStatus('正在下载ZIP文件...');
+    }
 }
 
 // 健康检查
@@ -2119,7 +2228,7 @@ async function editTextFile(filename) {
             }
         }
           // 使用 arrayBuffer 然后自动检测编码并转换为文本
-        const arrayBuffer = await response.arrayBuffer();
+               const arrayBuffer = await response.arrayBuffer();
         const content = decodeTextWithAutoDetection(arrayBuffer);
         
         showTextEditor(filename, content);
