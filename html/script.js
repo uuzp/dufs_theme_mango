@@ -255,8 +255,7 @@ function setupEventListeners() {
             searchInput.focus();
             searchInput.select();
             showStatus('聚焦到搜索框', 'success', 2000);
-        }
-          // Escape: 关闭所有模态框和菜单
+        }          // Escape: 关闭所有模态框和菜单
         else if (e.key === 'Escape') {
             // 关闭登录模态框
             const loginModal = document.getElementById('loginModal');
@@ -275,6 +274,12 @@ function setupEventListeners() {
             
             // 关闭图片预览
             closeImagePreview();
+            
+            // 退出多选模式
+            if (isMultiSelectMode) {
+                toggleMultiSelect();
+                return; // 退出多选模式后不执行其他操作
+            }
             
             // 清空搜索
             const searchInput = document.getElementById('searchInput');
