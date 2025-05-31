@@ -1083,11 +1083,13 @@ async function moveFile(filename) {
     
     try {
         const oldUrl = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(filename);
+        const newUrl = newPath + (newPath.endsWith('/') ? '' : '/') + encodeURIComponent(filename);
+        
         const response = await fetch(oldUrl, {
             method: 'MOVE',
             headers: {
                 'Authorization': authToken,
-                'Destination': window.location.origin + newPath
+                'Destination': window.location.origin + newUrl
             },
             credentials: 'omit'
         });
@@ -1509,11 +1511,10 @@ function handleRightClick(event, filename, isDir) {
         <div class="context-menu-item" onclick="getFileInfo('${filename}'); removeContextMenu();">
             ℹ️ 属性
         </div>
-        <div class="context-menu-separator"></div>
-        <div class="context-menu-item context-menu-danger" onclick="deleteFile('${filename}'); removeContextMenu();">
-            🗑️ 删除
+        <div class="context-menu-separator"></div>        <div class="context-menu-item context-menu-danger" onclick="handleContextDelete('${filename}'); removeContextMenu();">
+            🗑️ 删除${isMultiSelectMode && selectedFiles.size > 0 && selectedFiles.has(filename) ? ` (${selectedFiles.size}个)` : ''}
         </div>
-    `;    contextMenu.innerHTML = menuItems;
+    `;contextMenu.innerHTML = menuItems;
     
     // 计算菜单位置，避免超出屏幕
     const menuRect = contextMenu.getBoundingClientRect();
@@ -1551,6 +1552,22 @@ function removeContextMenu() {
     const menu = document.getElementById('contextMenu');
     if (menu) {
         menu.remove();
+    }
+}
+
+// 处理右键菜单的删除操作
+function handleContextDelete(filename) {
+    if (isMultiSelectMode && selectedFiles.size > 0) {
+        // 多选模式下，如果点击的文件已选中，则删除所有选中的文件
+        if (selectedFiles.has(filename)) {
+            deleteSelectedFiles();
+        } else {
+            // 如果点击的文件未选中，则只删除这个文件
+            deleteFile(filename);
+        }
+    } else {
+        // 非多选模式或没有选中文件，只删除单个文件
+        deleteFile(filename);
     }
 }
 
