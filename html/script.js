@@ -4,6 +4,10 @@ let currentPath = '/';
 let authToken = '';
 let isLoggedIn = false;
 
+// 多选模式相关变量
+let isMultiSelectMode = false;
+let selectedFiles = new Set();
+
 // 权限检查函数
 function requireAuth(operation = '此操作') {
     if (!isLoggedIn) {
@@ -306,6 +310,310 @@ function setupEventListeners() {
     });
 }
 
+// ==================== 多选模式相关功能 ====================
+
+// 切换多选模式
+function toggleMultiSelect() {
+    isMultiSelectMode = !isMultiSelectMode;
+    selectedFiles.clear();
+    
+    const multiSelectBtn = document.getElementById('multiSelectBtn');
+    
+    if (isMultiSelectMode) {
+        multiSelectBtn.style.backgroundColor = '#4CAF50';
+        multiSelectBtn.style.color = 'white';
+        multiSelectBtn.innerHTML = '✅';
+        multiSelectBtn.setAttribute('data-tooltip', '退出多选模式');
+        showStatus('已进入多选模式，点击文件进行选择', 'success', 3000);
+        
+        // 显示批量操作按钮
+        showBatchOperationButtons();
+    } else {
+        multiSelectBtn.style.backgroundColor = '';
+        multiSelectBtn.style.color = '';
+        multiSelectBtn.innerHTML = '☑️';
+        multiSelectBtn.setAttribute('data-tooltip', '多项选择');
+        showStatus('已退出多选模式', 'success', 2000);
+        
+        // 隐藏批量操作按钮
+        hideBatchOperationButtons();
+    }
+    
+    // 重新渲染文件列表以显示/隐藏复选框
+    refreshFileList();
+}
+
+// 显示批量操作按钮
+function showBatchOperationButtons() {
+    let batchButtons = document.getElementById('batchOperationButtons');
+    if (!batchButtons) {
+        batchButtons = document.createElement('div');
+        batchButtons.id = 'batchOperationButtons';
+        batchButtons.className = 'batch-operation-buttons';
+        batchButtons.innerHTML = `
+            <div class="batch-info">
+                <span id="selectedCount">已选择 0 个文件</span>
+                <button class="btn btn-secondary" onclick="selectAllFiles()">全选</button>
+                <button class="btn btn-secondary" onclick="clearSelection()">清除选择</button>
+            </div>
+            <div class="batch-actions">
+                <button class="btn btn-danger" onclick="deleteSelectedFiles()" id="batchDeleteBtn" disabled>
+                    🗑️ 删除选中
+                </button>
+                <button class="btn btn-primary" onclick="downloadSelectedFiles()" id="batchDownloadBtn" disabled>
+                    📥 下载选中
+                </button>
+                <button class="btn btn-warning" onclick="moveSelectedFiles()" id="batchMoveBtn" disabled>
+                    📁 移动选中
+                </button>
+            </div>
+        `;
+        
+        // 插入到文件列表上方
+        const fileListSection = document.querySelector('.file-list-section');
+        fileListSection.parentNode.insertBefore(batchButtons, fileListSection);
+    }
+    batchButtons.style.display = 'block';
+}
+
+// 隐藏批量操作按钮
+function hideBatchOperationButtons() {
+    const batchButtons = document.getElementById('batchOperationButtons');
+    if (batchButtons) {
+        batchButtons.style.display = 'none';
+    }
+}
+
+// 处理文件选择
+function handleFileSelection(filename, isDir) {
+    if (!isMultiSelectMode) {
+        // 非多选模式，执行原来的点击逻辑
+        handleFileClick(filename, isDir);
+        return;
+    }
+    
+    // 多选模式下的选择逻辑
+    const fileKey = filename;
+    const fileItem = document.querySelector(`[data-filename="${filename}"]`);
+    const checkbox = fileItem.querySelector('.file-checkbox');
+    
+    if (selectedFiles.has(fileKey)) {
+        selectedFiles.delete(fileKey);
+        checkbox.checked = false;
+        fileItem.classList.remove('selected');
+    } else {
+        selectedFiles.add(fileKey);
+        checkbox.checked = true;
+        fileItem.classList.add('selected');
+    }
+    
+    updateSelectionUI();
+}
+
+// 更新选择状态的UI
+function updateSelectionUI() {
+    const selectedCount = selectedFiles.size;
+    const selectedCountElement = document.getElementById('selectedCount');
+    
+    if (selectedCountElement) {
+        selectedCountElement.textContent = `已选择 ${selectedCount} 个文件`;
+    }
+    
+    // 更新批量操作按钮状态
+    const hasSelection = selectedCount > 0;
+    const batchDeleteBtn = document.getElementById('batchDeleteBtn');
+    const batchDownloadBtn = document.getElementById('batchDownloadBtn');
+    const batchMoveBtn = document.getElementById('batchMoveBtn');
+    
+    if (batchDeleteBtn) batchDeleteBtn.disabled = !hasSelection;
+    if (batchDownloadBtn) batchDownloadBtn.disabled = !hasSelection;
+    if (batchMoveBtn) batchMoveBtn.disabled = !hasSelection;
+}
+
+// 全选文件
+function selectAllFiles() {
+    if (!isMultiSelectMode) return;
+    
+    const fileItems = document.querySelectorAll('.file-item');
+    selectedFiles.clear();
+    
+    fileItems.forEach(item => {
+        const filename = item.getAttribute('data-filename');
+        const checkbox = item.querySelector('.file-checkbox');
+        
+        if (filename && checkbox) {
+            selectedFiles.add(filename);
+            checkbox.checked = true;
+            item.classList.add('selected');
+        }
+    });
+    
+    updateSelectionUI();
+    showStatus(`已选择全部 ${selectedFiles.size} 个文件`, 'success');
+}
+
+// 清除选择
+function clearSelection() {
+    if (!isMultiSelectMode) return;
+    
+    selectedFiles.clear();
+    
+    const fileItems = document.querySelectorAll('.file-item');
+    fileItems.forEach(item => {
+        const checkbox = item.querySelector('.file-checkbox');
+        if (checkbox) {
+            checkbox.checked = false;
+            item.classList.remove('selected');
+        }
+    });
+    
+    updateSelectionUI();
+    showStatus('已清除所有选择', 'success');
+}
+
+// 批量删除选中文件
+async function deleteSelectedFiles() {
+    if (!isMultiSelectMode || selectedFiles.size === 0) return;
+    
+    const fileNames = Array.from(selectedFiles);
+    const confirmed = confirm(`确定要删除选中的 ${fileNames.length} 个文件吗？\n\n文件列表：\n${fileNames.join('\n')}`);
+    
+    if (!confirmed) return;
+    
+    if (!requireAuth('批量删除文件')) {
+        return;
+    }
+    
+    let successCount = 0;
+    let failCount = 0;
+    
+    for (const filename of fileNames) {
+        try {
+            const url = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(filename);
+            const response = await fetch(url, { 
+                method: 'DELETE',
+                headers: {
+                    'Authorization': authToken
+                },
+                credentials: 'omit'
+            });
+            
+            if (response.status === 401) {
+                showStatus('权限不足，请重新登录', 'error');
+                return;
+            }
+            
+            if (response.ok) {
+                successCount++;
+                selectedFiles.delete(filename);
+            } else {
+                failCount++;
+                console.error(`删除 ${filename} 失败:`, response.statusText);
+            }
+        } catch (error) {
+            failCount++;
+            console.error(`删除 ${filename} 失败:`, error);
+        }
+    }
+    
+    if (successCount > 0) {
+        showStatus(`成功删除 ${successCount} 个文件${failCount > 0 ? `，失败 ${failCount} 个` : ''}`, 
+                  failCount > 0 ? 'warning' : 'success', 4000);
+        refreshFileList();
+    } else {
+        showStatus(`删除失败，共 ${failCount} 个文件删除失败`, 'error');
+    }
+    
+    updateSelectionUI();
+}
+
+// 批量下载选中文件
+function downloadSelectedFiles() {
+    if (!isMultiSelectMode || selectedFiles.size === 0) return;
+    
+    const fileNames = Array.from(selectedFiles);
+    
+    if (fileNames.length === 1) {
+        // 单个文件直接下载
+        downloadFile(fileNames[0]);
+    } else {
+        // 多个文件，提示用户下载选项
+        const confirmed = confirm(`要下载选中的 ${fileNames.length} 个文件吗？\n\n将会逐个下载以下文件：\n${fileNames.join('\n')}\n\n建议：如果文件较多，可以考虑使用"下载为ZIP"功能。`);
+        
+        if (confirmed) {
+            // 逐个下载文件
+            fileNames.forEach((filename, index) => {
+                setTimeout(() => {
+                    downloadFile(filename);
+                }, index * 500); // 延迟500ms避免浏览器阻止多个下载
+            });
+            
+            showStatus(`开始下载 ${fileNames.length} 个文件...`, 'success', 3000);
+        }
+    }
+}
+
+// 批量移动选中文件
+async function moveSelectedFiles() {
+    if (!isMultiSelectMode || selectedFiles.size === 0) return;
+    
+    const fileNames = Array.from(selectedFiles);
+    const targetPath = prompt(`请输入目标路径，将移动以下 ${fileNames.length} 个文件：\n\n${fileNames.join('\n')}\n\n目标路径:`, currentPath + '/');
+    
+    if (!targetPath || targetPath === currentPath + '/') return;
+    
+    if (!requireAuth('批量移动文件')) {
+        return;
+    }
+    
+    let successCount = 0;
+    let failCount = 0;
+    
+    for (const filename of fileNames) {
+        try {
+            const oldUrl = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(filename);
+            const newUrl = targetPath + (targetPath.endsWith('/') ? '' : '/') + encodeURIComponent(filename);
+            
+            const response = await fetch(oldUrl, {
+                method: 'MOVE',
+                headers: {
+                    'Authorization': authToken,
+                    'Destination': window.location.origin + newUrl
+                },
+                credentials: 'omit'
+            });
+            
+            if (response.status === 401) {
+                showStatus('权限不足，请重新登录', 'error');
+                return;
+            }
+            
+            if (response.ok) {
+                successCount++;
+                selectedFiles.delete(filename);
+            } else {
+                failCount++;
+                console.error(`移动 ${filename} 失败:`, response.statusText);
+            }
+        } catch (error) {
+            failCount++;
+            console.error(`移动 ${filename} 失败:`, error);
+        }
+    }
+    
+    if (successCount > 0) {
+        showStatus(`成功移动 ${successCount} 个文件到 ${targetPath}${failCount > 0 ? `，失败 ${failCount} 个` : ''}`, 
+                  failCount > 0 ? 'warning' : 'success', 4000);
+        refreshFileList();
+    } else {
+        showStatus(`移动失败，共 ${failCount} 个文件移动失败`, 'error');
+    }
+    
+    updateSelectionUI();
+}
+
+// ==================== 多选模式功能结束 ====================
+
 // 显示状态消息
 function showStatus(message, type = 'success', duration = 3000) {
     const statusDiv = document.getElementById('statusMessage');
@@ -405,21 +713,36 @@ function displayFileList(files) {
         const icon = isDir ? '📁' : getFileIcon(file.name);
         const size = isDir ? '' : formatFileSize(file.size);
         const filePath = currentPath + (currentPath.endsWith('/') ? '' : '/') + file.name;
-          // 根据设备类型选择事件处理
-        const clickHandler = isMobileDevice() 
-            ? `onclick="handleMobileDoubleClick(event, '${file.name}', ${isDir})"` 
-            : `onclick="handleFileClick('${file.name}', ${isDir})"`;
-              html += `
-            <div class="file-item" 
+        const isSelected = selectedFiles.has(file.name);
+        
+        // 根据多选模式和设备类型选择事件处理
+        let clickHandler;
+        if (isMultiSelectMode) {
+            clickHandler = `onclick="handleFileSelection('${file.name}', ${isDir})"`;
+        } else {
+            clickHandler = isMobileDevice() 
+                ? `onclick="handleMobileDoubleClick(event, '${file.name}', ${isDir})"` 
+                : `onclick="handleFileClick('${file.name}', ${isDir})"`;
+        }
+        
+        // 构建复选框（仅在多选模式下显示）
+        const checkboxHtml = isMultiSelectMode 
+            ? `<input type="checkbox" class="file-checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); handleFileSelection('${file.name}', ${isDir})">` 
+            : '';
+        
+        html += `
+            <div class="file-item ${isSelected ? 'selected' : ''}" 
                  ${isMobileDevice() ? '' : 'draggable="true"'} 
                  data-filename="${file.name}"
                  data-is-dir="${isDir}"
                  data-file-path="${filePath}"
                  ${clickHandler}
                  oncontextmenu="handleRightClick(event, '${file.name}', ${isDir})"
-                 ${isMobileDevice() ? '' : `ondragstart="handleDragStart(event, '${file.name}')"`}                 ${isMobileDevice() ? '' : `ondragover="handleDragOver(event, ${isDir})"`}
+                 ${isMobileDevice() ? '' : `ondragstart="handleDragStart(event, '${file.name}')"`}
+                 ${isMobileDevice() ? '' : `ondragover="handleDragOver(event, ${isDir})"`}
                  ${isMobileDevice() ? '' : `ondragleave="handleDragLeave(event, ${isDir})"`}
                  ${isMobileDevice() ? '' : `ondrop="handleDrop(event, '${file.name}', ${isDir})"`}>
+                ${checkboxHtml}
                 <div class="file-info">
                     <span class="file-icon">${icon}</span>
                     <span class="file-name">${file.name}</span>
@@ -430,6 +753,11 @@ function displayFileList(files) {
     });
     
     fileList.innerHTML = html;
+    
+    // 在多选模式下更新选择状态UI
+    if (isMultiSelectMode) {
+        updateSelectionUI();
+    }
 }
 
 // 获取文件图标
@@ -1850,5 +2178,3 @@ function decodeTextWithAutoDetection(arrayBuffer) {
     console.log('使用 UTF-8 编码（忽略错误）');
     return decoder.decode(arrayBuffer);
 }
-
-// 检查是否为压缩文件
