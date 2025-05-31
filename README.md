@@ -1,6 +1,6 @@
 # 🥭 Mango - Dufs 现代化主题
 
-[![Version](https://img.shields.io/badge/version-v0.2.1-brightgreen.svg)](https://github.com/uuzp/dufs_theme_mango/releases)
+[![Version](https://img.shields.io/badge/version-v0.2.3-brightgreen.svg)](https://github.com/uuzp/dufs_theme_mango/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ![Preview](Preview.png)
@@ -16,6 +16,13 @@
 - **右键菜单**：丰富的上下文菜单操作（下载、哈希、重命名、属性、删除）
 - **拖拽移动**：在文件夹间拖拽移动文件，支持面包屑导航拖拽
 - **解压缩功能**：右键点击ZIP文件即可解压缩，支持目录结构保持
+
+### 🎯 多选操作系统
+- **智能多选**：按住 Ctrl/Cmd 点击文件进行多选
+- **拖拽选择**：拖拽鼠标创建选择区域，批量选择文件
+- **批量操作**：对选中文件执行批量下载、删除、移动操作
+- **选择反馈**：实时显示选中数量，高亮显示选中项
+- **快捷键支持**：Ctrl/Cmd + A 全选，Escape 清除选择
 
 ### 📤 智能上传系统
 - **拖拽上传**：将文件拖拽到页面任意位置即可上传
@@ -127,6 +134,14 @@ compress: medium          # 压缩级别
 - **查看更多操作**：右键点击文件/文件夹
 - **移动文件**：拖拽文件到目标文件夹或面包屑路径
 
+### 多选操作
+- **多选文件**：按住 Ctrl/Cmd 键，点击多个文件进行选择
+- **拖拽选择**：在空白区域拖拽鼠标，创建选择框批量选择
+- **全选文件**：按 Ctrl/Cmd + A 选择当前目录所有文件
+- **批量下载**：选中多个文件后，点击工具栏的下载按钮
+- **批量删除**：选中多个文件后，点击工具栏的删除按钮
+- **清除选择**：按 Escape 键或点击工具栏的清除按钮
+
 ### 上传文件
 - **拖拽上传**：将文件拖拽到浏览器窗口
 - **选择上传**：点击 📁 按钮选择文件
@@ -143,10 +158,12 @@ compress: medium          # 压缩级别
 - **Ctrl/Cmd + U**：上传文件
 - **F5 / Ctrl/Cmd + R**：刷新文件列表
 - **Ctrl/Cmd + F**：聚焦搜索框
-- **Escape**：关闭模态框/菜单/清空搜索
+- **Escape**：关闭模态框/菜单/清空搜索/清除选择
 - **Backspace / Alt + ←**：返回上一级目录
 - **Ctrl/Cmd + Shift + N**：新建文件夹
 - **Ctrl/Cmd + D**：下载当前文件夹为ZIP
+- **Ctrl/Cmd + A**：全选当前目录所有文件
+- **Ctrl/Cmd + Shift + T**：新建文本文件
 
 ## 🌐 访问地址
 
