@@ -119,14 +119,12 @@
                 <h3>🔐 用户登录</h3>
                 <button class="close-btn" onclick="closeLoginModal()">✕</button>
             </div>
-            <div class="modal-body">
-                <div class="input-group">
+            <div class="modal-body">                <div class="input-group">
                     <label for="username">用户名:</label>
-                    <input type="text" id="username" placeholder="请输入用户名">
-                </div>
-                <div class="input-group">
+                    <input type="text" id="username" placeholder="请输入用户名" onkeypress="handleLoginKeyPress(event)">
+                </div><div class="input-group">
                     <label for="password">密码:</label>
-                    <input type="password" id="password" placeholder="请输入密码">
+                    <input type="password" id="password" placeholder="请输入密码" onkeypress="handleLoginKeyPress(event)">
                 </div>
             </div>
             <div class="modal-footer">

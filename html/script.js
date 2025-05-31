@@ -39,6 +39,14 @@ function closeLoginModal() {
     document.getElementById('password').value = '';
 }
 
+// 处理登录输入框的回车键事件
+function handleLoginKeyPress(event) {
+    if (event.key === 'Enter' || event.keyCode === 13) {
+        event.preventDefault();
+        login();
+    }
+}
+
 // 登录
 async function login() {
     const username = document.getElementById('username').value.trim();
