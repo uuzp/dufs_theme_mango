@@ -194,15 +194,13 @@ function setupEventListeners() {
                 uploadFiles(files);
             }
         }
-    });
-
-    // 添加拖拽结束事件
+    });    // 添加拖拽结束事件
     document.addEventListener('dragend', (e) => {
         // 重置拖拽状态
         if (e.target.classList && e.target.classList.contains('file-item')) {
             e.target.style.opacity = '1';
         }
-        draggedItem = null;
+        resetDragState();
     });
 
     // 文件选择
@@ -258,13 +256,18 @@ function setupEventListeners() {
             searchInput.select();
             showStatus('聚焦到搜索框', 'success', 2000);
         }
-        
-        // Escape: 关闭所有模态框和菜单
+          // Escape: 关闭所有模态框和菜单
         else if (e.key === 'Escape') {
             // 关闭登录模态框
             const loginModal = document.getElementById('loginModal');
             if (loginModal && loginModal.style.display !== 'none') {
                 closeLoginModal();
+            }
+            
+            // 关闭路径输入模态框
+            const pathInputModal = document.getElementById('pathInputModal');
+            if (pathInputModal) {
+                closePathInputModal();
             }
             
             // 关闭右键菜单
@@ -475,15 +478,11 @@ function clearSelection() {
 async function deleteSelectedFiles() {
     if (!isMultiSelectMode || selectedFiles.size === 0) return;
     
-    const fileNames = Array.from(selectedFiles);
-    const confirmed = confirm(`确定要删除选中的 ${fileNames.length} 个文件吗？\n\n文件列表：\n${fileNames.join('\n')}`);
-    
-    if (!confirmed) return;
-    
     if (!requireAuth('批量删除文件')) {
         return;
     }
     
+    const fileNames = Array.from(selectedFiles);
     let successCount = 0;
     let failCount = 0;
     
@@ -520,7 +519,7 @@ async function deleteSelectedFiles() {
         showStatus(`成功删除 ${successCount} 个文件${failCount > 0 ? `，失败 ${failCount} 个` : ''}`, 
                   failCount > 0 ? 'warning' : 'success', 4000);
         refreshFileList();
-    } else {
+    } else if (failCount > 0) {
         showStatus(`删除失败，共 ${failCount} 个文件删除失败`, 'error');
     }
     
@@ -558,13 +557,97 @@ async function moveSelectedFiles() {
     if (!isMultiSelectMode || selectedFiles.size === 0) return;
     
     const fileNames = Array.from(selectedFiles);
-    const targetPath = prompt(`请输入目标路径，将移动以下 ${fileNames.length} 个文件：\n\n${fileNames.join('\n')}\n\n目标路径:`, currentPath + '/');
+    showPathInputModal(fileNames);
+}
+
+// 显示路径输入模态框
+function showPathInputModal(fileNames) {
+    // 创建模态框HTML
+    const modalHtml = `
+        <div id="pathInputModal" class="modal" style="display: flex;">
+            <div class="modal-content path-input-modal">
+                <div class="modal-header">
+                    <h3>📁 移动文件</h3>
+                    <button class="close-btn" onclick="closePathInputModal()">✕</button>
+                </div>
+                <div class="modal-body">
+                    <p>将移动以下 ${fileNames.length} 个文件：</p>
+                    <div class="file-list-preview">
+                        ${fileNames.map(name => `<div class="file-preview-item">📄 ${name}</div>`).join('')}
+                    </div>
+                    <div class="input-group">
+                        <label for="targetPath">目标路径:</label>
+                        <input type="text" id="targetPath" placeholder="请输入目标路径" value="${currentPath}/" onkeypress="handlePathInputKeyPress(event, ${JSON.stringify(fileNames).replace(/"/g, '&quot;')})">
+                    </div>
+                    <div class="path-suggestions">
+                        <button class="path-suggestion-btn" onclick="setTargetPath('/')">根目录 (/)</button>
+                        <button class="path-suggestion-btn" onclick="setTargetPath('${currentPath}/')">当前目录</button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn" onclick="closePathInputModal()">取消</button>
+                    <button class="btn btn-primary" onclick="executeMoveFiles(${JSON.stringify(fileNames).replace(/"/g, '&quot;')})">移动</button>
+                </div>
+            </div>
+        </div>
+    `;
     
-    if (!targetPath || targetPath === currentPath + '/') return;
+    // 移除已存在的模态框
+    const existingModal = document.getElementById('pathInputModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // 添加到页面
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // 焦点到输入框
+    setTimeout(() => {
+        document.getElementById('targetPath').focus();
+        document.getElementById('targetPath').select();
+    }, 100);
+}
+
+// 关闭路径输入模态框
+function closePathInputModal() {
+    const modal = document.getElementById('pathInputModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+// 设置目标路径
+function setTargetPath(path) {
+    const input = document.getElementById('targetPath');
+    if (input) {
+        input.value = path;
+        input.focus();
+    }
+}
+
+// 处理路径输入的回车键事件
+function handlePathInputKeyPress(event, fileNames) {
+    if (event.key === 'Enter' || event.keyCode === 13) {
+        event.preventDefault();
+        executeMoveFiles(fileNames);
+    }
+}
+
+// 执行文件移动
+async function executeMoveFiles(fileNames) {
+    const targetPath = document.getElementById('targetPath').value.trim();
+    
+    if (!targetPath || targetPath === currentPath + '/') {
+        showStatus('请输入有效的目标路径', 'error');
+        return;
+    }
     
     if (!requireAuth('批量移动文件')) {
         return;
     }
+    
+    // 关闭模态框
+    closePathInputModal();
     
     let successCount = 0;
     let failCount = 0;
@@ -605,7 +688,7 @@ async function moveSelectedFiles() {
         showStatus(`成功移动 ${successCount} 个文件到 ${targetPath}${failCount > 0 ? `，失败 ${failCount} 个` : ''}`, 
                   failCount > 0 ? 'warning' : 'success', 4000);
         refreshFileList();
-    } else {
+    } else if (failCount > 0) {
         showStatus(`移动失败，共 ${failCount} 个文件移动失败`, 'error');
     }
     
@@ -1518,11 +1601,21 @@ function closeImagePreview() {
 
 // 拖拽开始
 let draggedItem = null;
+let draggedItems = null; // 用于多选拖拽
 function handleDragStart(event, filename) {
-    draggedItem = {
-        filename: filename,
-        sourcePath: currentPath
-    };
+    // 如果在多选模式下且该文件已选中，则拖拽所有选中的文件
+    if (isMultiSelectMode && selectedFiles.has(filename)) {
+        draggedItems = Array.from(selectedFiles);
+        draggedItem = null;
+    } else {
+        // 单文件拖拽
+        draggedItem = {
+            filename: filename,
+            sourcePath: currentPath
+        };
+        draggedItems = null;
+    }
+    
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', filename);
     
@@ -1532,7 +1625,7 @@ function handleDragStart(event, filename) {
 
 // 拖拽悬停
 function handleDragOver(event, isDir) {
-    if (!isDir || !draggedItem) return;
+    if (!isDir || (!draggedItem && !draggedItems)) return;
     
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
@@ -1556,56 +1649,99 @@ async function handleDrop(event, targetFolderName, isTargetDir) {
     // 移除悬停样式
     event.currentTarget.classList.remove('drag-over');
     
-    if (!isTargetDir || !draggedItem) return;
+    if (!isTargetDir || (!draggedItem && !draggedItems)) return;
     
     // 权限检查
     if (!requireAuth('移动文件')) {
         return;
     }
     
-    const sourceFile = draggedItem.filename;
-    const sourcePath = draggedItem.sourcePath;
+    let filesToMove = [];
+    let sourcePath = currentPath;
+    
+    // 确定要移动的文件列表
+    if (draggedItems) {
+        // 多选文件拖拽
+        filesToMove = draggedItems;
+    } else if (draggedItem) {
+        // 单文件拖拽
+        filesToMove = [draggedItem.filename];
+        sourcePath = draggedItem.sourcePath;
+    }
+    
     const targetPath = currentPath + (currentPath.endsWith('/') ? '' : '/') + targetFolderName;
     
     // 防止移动到自己
-    if (sourceFile === targetFolderName) {
+    if (filesToMove.includes(targetFolderName)) {
         showStatus('不能将文件夹移动到自己内部', 'error');
+        resetDragState();
         return;
     }
     
-    // 重置拖拽状态
-    draggedItem = null;
+    let successCount = 0;
+    let failCount = 0;
     
-    try {
-        const oldUrl = sourcePath + (sourcePath.endsWith('/') ? '' : '/') + encodeURIComponent(sourceFile);
-        const newUrl = targetPath + '/' + encodeURIComponent(sourceFile);
-        
-        const response = await fetch(oldUrl, {
-            method: 'MOVE',
-            headers: {
-                'Authorization': authToken,
-                'Destination': window.location.origin + newUrl
-            },
-            credentials: 'omit'
-        });
-        
-        if (response.status === 401) {
-            showStatus('权限不足，请重新登录', 'error');
-            return;
+    for (const filename of filesToMove) {
+        try {
+            const oldUrl = sourcePath + (sourcePath.endsWith('/') ? '' : '/') + encodeURIComponent(filename);
+            const newUrl = targetPath + '/' + encodeURIComponent(filename);
+            
+            const response = await fetch(oldUrl, {
+                method: 'MOVE',
+                headers: {
+                    'Authorization': authToken,
+                    'Destination': window.location.origin + newUrl
+                },
+                credentials: 'omit'
+            });
+            
+            if (response.status === 401) {
+                showStatus('权限不足，请重新登录', 'error');
+                resetDragState();
+                return;
+            }
+            
+            if (response.ok) {
+                successCount++;
+                // 如果是多选模式，从选中列表中移除
+                if (draggedItems) {
+                    selectedFiles.delete(filename);
+                }
+            } else {
+                failCount++;
+                console.error(`移动 ${filename} 失败:`, response.statusText);
+            }
+        } catch (error) {
+            failCount++;
+            console.error(`移动 ${filename} 失败:`, error);
         }
-        
-        if (!response.ok) throw new Error('移动失败');
-        
-        showStatus(`成功将 ${sourceFile} 移动到 ${targetFolderName}`);
-        refreshFileList();
-    } catch (error) {
-        showStatus('移动失败: ' + error.message, 'error');
     }
+    
+    if (successCount > 0) {
+        const message = filesToMove.length === 1 
+            ? `成功将 ${filesToMove[0]} 移动到 ${targetFolderName}`
+            : `成功移动 ${successCount} 个文件到 ${targetFolderName}${failCount > 0 ? `，失败 ${failCount} 个` : ''}`;
+        showStatus(message, failCount > 0 ? 'warning' : 'success');
+        refreshFileList();
+        if (draggedItems) {
+            updateSelectionUI();
+        }
+    } else if (failCount > 0) {
+        showStatus(`移动失败，共 ${failCount} 个文件移动失败`, 'error');
+    }
+    
+    resetDragState();
+}
+
+// 重置拖拽状态
+function resetDragState() {
+    draggedItem = null;
+    draggedItems = null;
 }
 
 // 处理面包屑拖拽悬停
 function handleBreadcrumbDragOver(event, targetPath) {
-    if (!draggedItem) return;
+    if (!draggedItem && !draggedItems) return;
     
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
@@ -1621,50 +1757,86 @@ async function handleBreadcrumbDrop(event, targetPath) {
     // 移除悬停样式
     event.currentTarget.classList.remove('breadcrumb-drag-over');
     
-    if (!draggedItem) return;
+    if (!draggedItem && !draggedItems) return;
     
     // 权限检查
     if (!requireAuth('移动文件')) {
         return;
     }
     
-    const sourceFile = draggedItem.filename;
-    const sourcePath = draggedItem.sourcePath;
+    let filesToMove = [];
+    let sourcePath = currentPath;
+    
+    // 确定要移动的文件列表
+    if (draggedItems) {
+        // 多选文件拖拽
+        filesToMove = draggedItems;
+    } else if (draggedItem) {
+        // 单文件拖拽
+        filesToMove = [draggedItem.filename];
+        sourcePath = draggedItem.sourcePath;
+    }
     
     // 防止移动到相同位置
     if (sourcePath === targetPath) {
         showStatus('文件已在该位置', 'error');
+        resetDragState();
         return;
     }
     
-    // 重置拖拽状态
-    draggedItem = null;
+    let successCount = 0;
+    let failCount = 0;
     
-    try {
-        const oldUrl = sourcePath + (sourcePath.endsWith('/') ? '' : '/') + encodeURIComponent(sourceFile);
-        const newUrl = targetPath + (targetPath.endsWith('/') ? '' : '/') + encodeURIComponent(sourceFile);
-        
-        const response = await fetch(oldUrl, {
-            method: 'MOVE',
-            headers: {
-                'Authorization': authToken,
-                'Destination': window.location.origin + newUrl
-            },
-            credentials: 'omit'
-        });
-        
-        if (response.status === 401) {
-            showStatus('权限不足，请重新登录', 'error');
-            return;
+    for (const filename of filesToMove) {
+        try {
+            const oldUrl = sourcePath + (sourcePath.endsWith('/') ? '' : '/') + encodeURIComponent(filename);
+            const newUrl = targetPath + (targetPath.endsWith('/') ? '' : '/') + encodeURIComponent(filename);
+            
+            const response = await fetch(oldUrl, {
+                method: 'MOVE',
+                headers: {
+                    'Authorization': authToken,
+                    'Destination': window.location.origin + newUrl
+                },
+                credentials: 'omit'
+            });
+            
+            if (response.status === 401) {
+                showStatus('权限不足，请重新登录', 'error');
+                resetDragState();
+                return;
+            }
+            
+            if (response.ok) {
+                successCount++;
+                // 如果是多选模式，从选中列表中移除
+                if (draggedItems) {
+                    selectedFiles.delete(filename);
+                }
+            } else {
+                failCount++;
+                console.error(`移动 ${filename} 失败:`, response.statusText);
+            }
+        } catch (error) {
+            failCount++;
+            console.error(`移动 ${filename} 失败:`, error);
         }
-        
-        if (!response.ok) throw new Error('移动失败');
-        
-        showStatus(`成功将 ${sourceFile} 移动到 ${targetPath}`);
-        refreshFileList();
-    } catch (error) {
-        showStatus('移动失败: ' + error.message, 'error');
     }
+    
+    if (successCount > 0) {
+        const message = filesToMove.length === 1 
+            ? `成功将 ${filesToMove[0]} 移动到 ${targetPath}`
+            : `成功移动 ${successCount} 个文件到 ${targetPath}${failCount > 0 ? `，失败 ${failCount} 个` : ''}`;
+        showStatus(message, failCount > 0 ? 'warning' : 'success');
+        refreshFileList();
+        if (draggedItems) {
+            updateSelectionUI();
+        }
+    } else if (failCount > 0) {
+        showStatus(`移动失败，共 ${failCount} 个文件移动失败`, 'error');
+    }
+    
+    resetDragState();
 }
 
 // 解压缩文件

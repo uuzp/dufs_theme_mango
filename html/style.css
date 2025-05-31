@@ -1176,6 +1176,75 @@ body.dragging .container {
     }
 }
 
+/* 路径输入模态框专用样式 */
+.path-input-modal {
+    max-width: 550px;
+    width: 95%;
+}
+
+.file-list-preview {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 10px;
+    margin: 15px 0;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.file-preview-item {
+    padding: 5px 0;
+    color: #6c757d;
+    font-size: 14px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.file-preview-item:last-child {
+    border-bottom: none;
+}
+
+.path-suggestions {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.path-suggestion-btn {
+    background: #e9ecef;
+    color: #495057;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s ease;
+}
+
+.path-suggestion-btn:hover {
+    background: #dee2e6;
+    color: #212529;
+}
+
+.path-input-modal .input-group {
+    margin: 15px 0;
+}
+
+.path-input-modal .input-group label {
+    width: 80px;
+    font-weight: 600;
+}
+
+.path-input-modal .input-group input {
+    border: 2px solid #e9ecef;
+    transition: all 0.2s ease;
+}
+
+.path-input-modal .input-group input:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
 /* 文本编辑器样式 */
 .text-editor-overlay {
     position: fixed;
