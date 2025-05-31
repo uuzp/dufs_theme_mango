@@ -924,7 +924,47 @@ async function uploadFiles(files) {
 // 下载文件
 function downloadFile(filename) {
     const url = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(filename);
-    window.open(url, '_blank');
+    
+    // 创建一个临时的 a 标签来触发下载
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename; // 设置下载文件名
+    link.style.display = 'none';
+    
+    // 添加认证头（如果需要）
+    if (authToken) {
+        // 对于需要认证的下载，使用 fetch + blob 方式
+        fetch(url, {
+            headers: {
+                'Authorization': authToken
+            },
+            credentials: 'omit'
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('下载失败');
+            }
+            return response.blob();
+        })
+        .then(blob => {
+            const blobUrl = window.URL.createObjectURL(blob);
+            link.href = blobUrl;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(blobUrl);
+            showStatus(`开始下载 ${filename}`, 'success', 2000);
+        })
+        .catch(error => {
+            showStatus('下载失败: ' + error.message, 'error');
+        });
+    } else {
+        // 无需认证的下载，直接使用 a 标签
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showStatus(`开始下载 ${filename}`, 'success', 2000);
+    }
 }
 
 // 复制到剪贴板
