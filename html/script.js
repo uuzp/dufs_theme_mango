@@ -6,7 +6,7 @@ let isLoggedIn = false;
 
 // 多选模式相关变量
 let isMultiSelectMode = false;
-let selectedFiles = new Set();
+let selectedFiles = new Map(); // 存储选中的文件，key为文件名，value为{isDir: boolean}
 
 // 权限检查函数
 function requireAuth(operation = '此操作') {
@@ -412,7 +412,7 @@ function handleFileSelection(filename, isDir) {
         checkbox.checked = false;
         fileItem.classList.remove('selected');
     } else {
-        selectedFiles.add(fileKey);
+        selectedFiles.set(fileKey, { isDir: isDir });
         checkbox.checked = true;
         fileItem.classList.add('selected');
     }
@@ -450,10 +450,11 @@ function selectAllFiles() {
     
     fileItems.forEach(item => {
         const filename = item.getAttribute('data-filename');
+        const isDir = item.getAttribute('data-is-dir') === 'true';
         const checkbox = item.querySelector('.file-checkbox');
         
         if (filename && checkbox) {
-            selectedFiles.add(filename);
+            selectedFiles.set(filename, { isDir: isDir });
             checkbox.checked = true;
             item.classList.add('selected');
         }
@@ -490,7 +491,7 @@ async function deleteSelectedFiles() {
         return;
     }
     
-    const fileNames = Array.from(selectedFiles);
+    const fileNames = Array.from(selectedFiles.keys());
     let successCount = 0;
     let failCount = 0;
     
@@ -538,7 +539,7 @@ async function deleteSelectedFiles() {
 function downloadSelectedFiles() {
     if (!isMultiSelectMode || selectedFiles.size === 0) return;
     
-    const fileNames = Array.from(selectedFiles);
+    const fileNames = Array.from(selectedFiles.keys());
     
     if (fileNames.length === 1) {
         // 单个文件直接下载
@@ -564,8 +565,6 @@ function downloadSelectedFiles() {
 async function downloadSelectedAsZip() {
     if (!isMultiSelectMode || selectedFiles.size === 0) return;
     
-    const fileNames = Array.from(selectedFiles);
-    
     // 检查是否有JSZip库可用
     if (typeof JSZip === 'undefined') {
         showStatus('ZIP功能需要JSZip库支持。将改为逐个下载文件。', 'warning', 3000);
@@ -579,42 +578,43 @@ async function downloadSelectedAsZip() {
         const zip = new JSZip();
         let successCount = 0;
         let failCount = 0;
+        let totalProcessed = 0;
         
         // 遍历选中的文件并添加到ZIP
-        for (const filename of fileNames) {
+        for (const [filename, fileInfo] of selectedFiles) {
             try {
-                const fileUrl = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(filename);
-                
-                const headers = {};
-                if (authToken) {
-                    headers['Authorization'] = authToken;
+                if (fileInfo.isDir) {
+                    // 处理文件夹
+                    showStatus(`正在处理文件夹: ${filename}`, 'success');
+                    const folderSuccessCount = await addFolderContentsToZip(zip, currentPath, filename, filename);
+                    successCount += folderSuccessCount;
+                } else {
+                    // 处理文件
+                    const fileUrl = currentPath + (currentPath.endsWith('/') ? '' : '/') + encodeURIComponent(filename);
+                    
+                    const headers = {};
+                    if (authToken) {
+                        headers['Authorization'] = authToken;
+                    }
+                    
+                    const response = await fetch(fileUrl, {
+                        headers,
+                        credentials: 'omit'
+                    });
+                    
+                    if (!response.ok) {
+                        failCount++;
+                        console.warn(`Failed to fetch ${filename}: ${response.status}`);
+                        continue;
+                    }
+                    
+                    const fileBlob = await response.blob();
+                    zip.file(filename, fileBlob);
+                    successCount++;
                 }
                 
-                const response = await fetch(fileUrl, {
-                    headers,
-                    credentials: 'omit'
-                });
-                
-                if (!response.ok) {
-                    failCount++;
-                    console.warn(`Failed to fetch ${filename}: ${response.status}`);
-                    continue;
-                }
-                
-                // 检查是否是文件夹（通过Content-Type判断）
-                const contentType = response.headers.get('content-type');
-                if (contentType && contentType.includes('text/html')) {
-                    // 这可能是一个文件夹的HTML页面，跳过
-                    failCount++;
-                    console.warn(`Skipping directory: ${filename}`);
-                    continue;
-                }
-                
-                const fileBlob = await response.blob();
-                zip.file(filename, fileBlob);
-                successCount++;
-                
-                showStatus(`正在打包: ${successCount}/${fileNames.length} - ${filename}`, 'success');
+                totalProcessed++;
+                showStatus(`正在打包: ${totalProcessed}/${selectedFiles.size} - ${filename}`, 'success');
             } catch (error) {
                 failCount++;
                 console.error(`Error processing ${filename}:`, error);
@@ -660,11 +660,83 @@ async function downloadSelectedAsZip() {
     }
 }
 
+// 递归添加文件夹内容到ZIP
+async function addFolderContentsToZip(zip, basePath, folderName, zipPath) {
+    let successCount = 0;
+    
+    try {
+        const folderUrl = basePath + (basePath.endsWith('/') ? '' : '/') + encodeURIComponent(folderName) + '?json';
+        
+        const headers = {};
+        if (authToken) {
+            headers['Authorization'] = authToken;
+        }
+        
+        const response = await fetch(folderUrl, {
+            headers,
+            credentials: 'omit'
+        });
+        
+        if (!response.ok) {
+            console.warn(`Failed to fetch folder contents: ${folderName}`);
+            return 0;
+        }
+        
+        const data = await response.json();
+        const folderContents = data && data.paths ? data.paths : [];
+        
+        // 在ZIP中创建文件夹
+        if (folderContents.length === 0) {
+            // 空文件夹，创建一个空目录
+            zip.folder(zipPath);
+        }
+        
+        // 遍历文件夹内容
+        for (const item of folderContents) {
+            const itemName = item.name;
+            const isDir = item.path_type === 'Dir';
+            const itemZipPath = zipPath + '/' + itemName;
+            
+            if (isDir) {
+                // 递归处理子文件夹
+                const subFolderPath = basePath + (basePath.endsWith('/') ? '' : '/') + folderName;
+                const subSuccessCount = await addFolderContentsToZip(zip, subFolderPath, itemName, itemZipPath);
+                successCount += subSuccessCount;
+            } else {
+                // 处理文件
+                try {
+                    const fileUrl = basePath + (basePath.endsWith('/') ? '' : '/') + folderName + '/' + encodeURIComponent(itemName);
+                    
+                    const fileResponse = await fetch(fileUrl, {
+                        headers,
+                        credentials: 'omit'
+                    });
+                    
+                    if (fileResponse.ok) {
+                        const fileBlob = await fileResponse.blob();
+                        zip.file(itemZipPath, fileBlob);
+                        successCount++;
+                    } else {
+                        console.warn(`Failed to fetch file: ${fileUrl}`);
+                    }
+                } catch (error) {
+                    console.error(`Error processing file ${itemName}:`, error);
+                }
+            }
+        }
+        
+    } catch (error) {
+        console.error(`Error processing folder ${folderName}:`, error);
+    }
+    
+    return successCount;
+}
+
 // 批量移动选中文件
 async function moveSelectedFiles() {
     if (!isMultiSelectMode || selectedFiles.size === 0) return;
     
-    const fileNames = Array.from(selectedFiles);
+    const fileNames = Array.from(selectedFiles.keys());
     showPathInputModal(fileNames);
 }
 
@@ -903,8 +975,7 @@ function displayFileList(files) {
         const isDir = file.path_type === 'Dir';
         const icon = isDir ? '📁' : getFileIcon(file.name);
         const size = isDir ? '' : formatFileSize(file.size);
-        const filePath = currentPath + (currentPath.endsWith('/') ? '' : '/') + file.name;
-        const isSelected = selectedFiles.has(file.name);
+        const filePath = currentPath + (currentPath.endsWith('/') ? '' : '/') + file.name;        const isSelected = selectedFiles.has(file.name);
         
         // 根据多选模式和设备类型选择事件处理
         let clickHandler;
@@ -920,8 +991,7 @@ function displayFileList(files) {
         const checkboxHtml = isMultiSelectMode 
             ? `<input type="checkbox" class="file-checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); handleFileSelection('${file.name}', ${isDir})">` 
             : '';
-        
-        html += `
+          html += `
             <div class="file-item ${isSelected ? 'selected' : ''}" 
                  ${isMobileDevice() ? '' : 'draggable="true"'} 
                  data-filename="${file.name}"
