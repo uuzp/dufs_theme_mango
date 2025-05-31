@@ -326,72 +326,22 @@ function toggleMultiSelect() {
     selectedFiles.clear();
     
     const multiSelectBtn = document.getElementById('multiSelectBtn');
-    
-    if (isMultiSelectMode) {
+      if (isMultiSelectMode) {
         multiSelectBtn.style.backgroundColor = '#4CAF50';
         multiSelectBtn.style.color = 'white';
         multiSelectBtn.innerHTML = '✅';
         multiSelectBtn.setAttribute('data-tooltip', '退出多选模式');
         showStatus('已进入多选模式，点击文件进行选择', 'success', 3000);
-        
-        // 显示批量操作按钮
-        showBatchOperationButtons();
     } else {
         multiSelectBtn.style.backgroundColor = '';
         multiSelectBtn.style.color = '';
         multiSelectBtn.innerHTML = '☑️';
         multiSelectBtn.setAttribute('data-tooltip', '多项选择');
         showStatus('已退出多选模式', 'success', 2000);
-        
-        // 隐藏批量操作按钮
-        hideBatchOperationButtons();
     }
     
     // 重新渲染文件列表以显示/隐藏复选框
     refreshFileList();
-}
-
-// 显示批量操作按钮
-function showBatchOperationButtons() {
-    let batchButtons = document.getElementById('batchOperationButtons');
-    if (!batchButtons) {
-        batchButtons = document.createElement('div');
-        batchButtons.id = 'batchOperationButtons';
-        batchButtons.className = 'batch-operation-buttons';
-        batchButtons.innerHTML = `
-            <div class="batch-info">
-                <span id="selectedCount">已选择 0 个文件</span>
-                <button class="btn btn-secondary" onclick="selectAllFiles()">全选</button>
-                <button class="btn btn-secondary" onclick="clearSelection()">清除选择</button>
-            </div>
-            <div class="batch-actions">
-                <button class="btn btn-danger" onclick="deleteSelectedFiles()" id="batchDeleteBtn" disabled>
-                    🗑️ 删除选中
-                </button>                <button class="btn btn-primary" onclick="downloadSelectedFiles()" id="batchDownloadBtn" disabled>
-                    📥 下载选中
-                </button>
-                <button class="btn btn-success" onclick="downloadSelectedAsZip()" id="batchZipBtn" disabled>
-                    📦 打包为ZIP
-                </button>
-                <button class="btn btn-warning" onclick="moveSelectedFiles()" id="batchMoveBtn" disabled>
-                    📁 移动选中
-                </button>
-            </div>
-        `;
-        
-        // 插入到文件列表上方
-        const fileListSection = document.querySelector('.file-list-section');
-        fileListSection.parentNode.insertBefore(batchButtons, fileListSection);
-    }
-    batchButtons.style.display = 'block';
-}
-
-// 隐藏批量操作按钮
-function hideBatchOperationButtons() {
-    const batchButtons = document.getElementById('batchOperationButtons');
-    if (batchButtons) {
-        batchButtons.style.display = 'none';
-    }
 }
 
 // 处理文件选择
@@ -422,23 +372,9 @@ function handleFileSelection(filename, isDir) {
 
 // 更新选择状态的UI
 function updateSelectionUI() {
-    const selectedCount = selectedFiles.size;
-    const selectedCountElement = document.getElementById('selectedCount');
-    
-    if (selectedCountElement) {
-        selectedCountElement.textContent = `已选择 ${selectedCount} 个文件`;
+    if (isMultiSelectMode && selectedFiles.size > 0) {
+        showStatus(`已选择 ${selectedFiles.size} 个文件`, 'success', 2000);
     }
-      // 更新批量操作按钮状态
-    const hasSelection = selectedCount > 0;
-    const batchDeleteBtn = document.getElementById('batchDeleteBtn');
-    const batchDownloadBtn = document.getElementById('batchDownloadBtn');
-    const batchZipBtn = document.getElementById('batchZipBtn');
-    const batchMoveBtn = document.getElementById('batchMoveBtn');
-    
-    if (batchDeleteBtn) batchDeleteBtn.disabled = !hasSelection;
-    if (batchDownloadBtn) batchDownloadBtn.disabled = !hasSelection;
-    if (batchZipBtn) batchZipBtn.disabled = !hasSelection;
-    if (batchMoveBtn) batchMoveBtn.disabled = !hasSelection;
 }
 
 // 全选文件
