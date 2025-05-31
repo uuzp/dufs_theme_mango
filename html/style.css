@@ -1105,17 +1105,22 @@ body.dragging .container {
 
 .input-group {
     margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
 .input-group label {
-    display: block;
-    margin-bottom: 5px;
+    display: inline-block;
+    width: 60px;
+    margin-bottom: 0;
     color: #333;
     font-weight: 500;
+    text-align: left;
 }
 
 .input-group input {
-    width: 100%;
+    flex: 1;
     padding: 10px 12px;
     border: 1px solid #ddd;
     border-radius: 6px;
