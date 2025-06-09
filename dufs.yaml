@@ -43,3 +43,4 @@ log-format: '$remote_addr "$request" $status $http_user_agent'
 # HTTPS配置 (可选)
 # tls-cert: cert.pem
 # tls-key: key.pem
+lock-password: 'your-lock-password'  # 锁定密码（用于锁定服务）

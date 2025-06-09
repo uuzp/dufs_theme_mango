@@ -1,4 +1,9 @@
 // Dufs 文件管理器 JavaScript 代码
+
+// 锁定画面配置
+const LOCK_PASSWORD = 'mango2024'; // 访问密码，可以根据需要修改
+let isScreenLocked = true;
+
 // 全局变量
 let currentPath = '/';
 let authToken = '';
@@ -124,8 +129,15 @@ document.addEventListener('DOMContentLoaded', function() {
     
     try {
         setupEventListeners();
-        refreshFileList();
-        checkHealth();
+        
+        // 如果屏幕已解锁，则初始化文件列表
+        if (!isScreenLocked) {
+            refreshFileList();
+            checkHealth();
+        }
+        
+        // 初始化锁定画面
+        initLockScreen();
     } catch (error) {
         console.error('Error during initialization:', error);
     }
@@ -2524,6 +2536,93 @@ function decodeTextWithAutoDetection(arrayBuffer) {
     
     // 如果所有尝试都失败，使用UTF-8并忽略错误
     const decoder = new TextDecoder('utf-8', { fatal: false });
-    console.log('使用 UTF-8 编码（忽略错误）');
     return decoder.decode(arrayBuffer);
 }
+
+// ============== 锁定画面功能 ==============
+
+// 处理锁定画面密码输入的回车键事件
+function handleLockKeyPress(event) {
+    if (event.key === 'Enter' || event.keyCode === 13) {
+        event.preventDefault();
+        unlockScreen();
+    }
+}
+
+// 解锁画面
+function unlockScreen() {
+    const passwordInput = document.getElementById('lockPassword');
+    const password = passwordInput.value.trim();
+    const errorDiv = document.getElementById('lockError');
+    
+    if (!password) {
+        showLockError('请输入访问密码');
+        return;
+    }
+    
+    if (password === LOCK_PASSWORD) {
+        // 密码正确，隐藏锁定画面
+        isScreenLocked = false;
+        const lockScreen = document.getElementById('lockScreen');
+        const mainContainer = document.getElementById('mainContainer');
+        
+        // 添加解锁动画
+        lockScreen.style.animation = 'lockFadeOut 0.5s ease-in forwards';
+        
+        setTimeout(() => {
+            lockScreen.style.display = 'none';
+            mainContainer.style.display = 'flex';
+            // 初始化文件列表
+            refreshFileList();
+        }, 500);
+        
+        // 清空密码输入框
+        passwordInput.value = '';
+        errorDiv.style.display = 'none';
+    } else {
+        // 密码错误
+        showLockError('访问密码错误，请重试');
+        passwordInput.value = '';
+        
+        // 添加输入框摇动动画
+        passwordInput.style.animation = 'shake 0.5s ease-in-out';
+        setTimeout(() => {
+            passwordInput.style.animation = '';
+        }, 500);
+    }
+}
+
+// 显示锁定画面错误信息
+function showLockError(message) {
+    const errorDiv = document.getElementById('lockError');
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+    
+    // 3秒后自动隐藏错误信息
+    setTimeout(() => {
+        if (errorDiv.textContent === message) {
+            errorDiv.style.display = 'none';
+        }
+    }, 3000);
+}
+
+// 锁定画面初始化
+function initLockScreen() {
+    if (isScreenLocked) {
+        const lockScreen = document.getElementById('lockScreen');
+        const mainContainer = document.getElementById('mainContainer');
+        
+        lockScreen.style.display = 'flex';
+        mainContainer.style.display = 'none';
+        
+        // 焦点到密码输入框
+        setTimeout(() => {
+            const passwordInput = document.getElementById('lockPassword');
+            if (passwordInput) {
+                passwordInput.focus();
+            }
+        }, 100);
+    }
+}
+
+

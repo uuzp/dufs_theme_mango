@@ -32,7 +32,21 @@
     </style>
 </head>
 <body>
-    <div class="container">
+    <!-- 锁定画面 -->
+    <div id="lockScreen" class="lock-screen">
+        <div class="lock-content">
+            <div class="lock-icon">🔒</div>
+            <h1 class="lock-title">Mango 文件管理器</h1>
+            <p class="lock-subtitle">请输入访问密码</p>
+            <div class="lock-form">
+                <input type="password" id="lockPassword" class="lock-input" placeholder="输入访问密码..." onkeypress="handleLockKeyPress(event)">
+                <button class="lock-btn" onclick="unlockScreen()">解锁</button>
+            </div>
+            <div id="lockError" class="lock-error" style="display: none;"></div>
+        </div>
+    </div>
+
+    <div class="container" id="mainContainer" style="display: none;">
         <!-- 顶部工具栏 -->
         <div class="toolbar">
             <!-- 当前路径 -->
