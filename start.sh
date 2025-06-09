@@ -164,14 +164,36 @@ echo
 # 构建启动命令
 DUFS_ARGS="--bind 0.0.0.0:5000 --render-index --render-spa --allow-upload --allow-delete --allow-search --theme-folder html"
 
+# 设置锁定画面密码到 JavaScript 文件
+set_lock_password() {
+    local password="$1"
+    local script_path="html/script.js"
+    
+    if [ ! -f "$script_path" ]; then
+        echo "❌ 找不到 script.js 文件: $script_path"
+        return 1
+    fi
+    
+    echo "🔐 设置锁定画面密码..."
+    
+    # 使用 sed 替换密码设置行
+    if sed -i.bak "s/let LOCK_PASSWORD = '[^']*';/let LOCK_PASSWORD = '$password';/" "$script_path" 2>/dev/null; then
+        rm -f "$script_path.bak" 2>/dev/null
+        echo "✅ 锁定密码已设置为: $password"
+        return 0
+    else
+        echo "❌ 设置密码失败"
+        return 1
+    fi
+}
+
 # 如果设置了密码，则添加到启动参数中
 if [ -n "$LOCK_PASSWORD" ]; then
-    # 创建临时的环境变量文件来传递密码
-    export MANGO_LOCK_PASSWORD="$LOCK_PASSWORD"
+    set_lock_password "$LOCK_PASSWORD"
     echo "🔐 已设置锁定密码"
 else
     # 使用默认密码
-    export MANGO_LOCK_PASSWORD="mango2025"
+    set_lock_password "mango2025"
     echo "🔐 使用默认密码: mango2025"
 fi
 
