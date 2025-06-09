@@ -4,6 +4,43 @@
 # 适用于 Linux/macOS
 # 自动下载dufs并启动文件服务器
 
+# 处理命令行参数
+LOCK_PASSWORD=""
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --lock-password)
+            if [[ -n "$2" ]]; then
+                LOCK_PASSWORD="$2"
+                echo "🔐 设置锁定密码: $2"
+                shift 2
+            else
+                echo "❌ 错误: --lock-password 需要指定密码值"
+                echo "用法: $0 --lock-password 你的密码"
+                exit 1
+            fi
+            ;;
+        --help)
+            echo ""
+            echo "🥭 Mango 文件管理器启动脚本"
+            echo ""
+            echo "用法:"
+            echo "  $0                           - 使用默认密码 mango2025 启动"
+            echo "  $0 --lock-password 密码      - 设置自定义锁定密码"
+            echo "  $0 --help                   - 显示此帮助信息"
+            echo ""
+            echo "示例:"
+            echo "  $0 --lock-password 123456"
+            echo ""
+            exit 0
+            ;;
+        *)
+            echo "❌ 未知参数: $1"
+            echo "使用 $0 --help 查看帮助"
+            exit 1
+            ;;
+    esac
+done
+
 echo "================================="
 echo "   🥭 Mango 文件管理器启动"
 echo "================================="
@@ -113,15 +150,34 @@ echo "- 服务地址: http://localhost:5000"
 echo "- 主题目录: html/"
 echo "- 数据目录: data/"
 echo "- 允许所有操作（上传、删除、搜索等）"
+if [ -n "$LOCK_PASSWORD" ]; then
+    echo "- 锁定密码: $LOCK_PASSWORD"
+else
+    echo "- 锁定密码: mango2025（默认）"
+fi
 echo
 
 # 启动dufs服务器
 echo "正在启动 🥭 Mango 文件管理器..."
 echo
 
+# 构建启动命令
+DUFS_ARGS="--bind 0.0.0.0:5000 --render-index --render-spa --allow-upload --allow-delete --allow-search --theme-folder html"
+
+# 如果设置了密码，则添加到启动参数中
+if [ -n "$LOCK_PASSWORD" ]; then
+    # 创建临时的环境变量文件来传递密码
+    export MANGO_LOCK_PASSWORD="$LOCK_PASSWORD"
+    echo "🔐 已设置锁定密码"
+else
+    # 使用默认密码
+    export MANGO_LOCK_PASSWORD="mango2025"
+    echo "🔐 使用默认密码: mango2025"
+fi
+
 if [ "$USE_CONFIG" = true ]; then
     $DUFS_CMD --config dufs.yaml
 else
     # 使用默认参数
-    $DUFS_CMD --bind 0.0.0.0:5000 --render-index --render-spa --allow-upload --allow-delete --allow-search --theme-folder html data
+    $DUFS_CMD $DUFS_ARGS data
 fi
