@@ -2,8 +2,9 @@
 # 自动检测系统架构并下载对应的 dufs 可执行文件
 
 param(
-    [switch]$Force,  # 强制重新下载
-    [switch]$Help    # 显示帮助
+    [switch]$Force,       # 强制重新下载
+    [switch]$Help,        # 显示帮助
+    [string]$LockPassword # 设置锁定画面密码
 )
 
 # 颜色输出函数
@@ -22,15 +23,20 @@ if ($Help) {
     Write-Info "🥭 Mango 文件管理器启动脚本"
     Write-Host ""
     Write-Host "用法:"
-    Write-Host "  .\start.ps1          - 启动文件管理器"
-    Write-Host "  .\start.ps1 -Force   - 强制重新下载 dufs 可执行文件"
-    Write-Host "  .\start.ps1 -Help    - 显示此帮助信息"
+    Write-Host "  .\start.ps1                           - 启动文件管理器"
+    Write-Host "  .\start.ps1 -Force                    - 强制重新下载 dufs 可执行文件"
+    Write-Host "  .\start.ps1 -LockPassword <密码>      - 设置锁定画面密码"
+    Write-Host "  .\start.ps1 -Help                     - 显示此帮助信息"
+    Write-Host ""
+    Write-Host "示例:"
+    Write-Host "  .\start.ps1 -LockPassword '123456'   - 设置锁定密码为 123456"
     Write-Host ""
     Write-Host "功能:"
     Write-Host "  - 自动检测系统架构"
     Write-Host "  - 自动下载对应的 dufs 可执行文件"
     Write-Host "  - 自动创建 data 目录"    
     Write-Host "  - 启动 🥭 Mango 文件管理器"
+    Write-Host "  - 支持自定义锁定画面密码（默认: mango2025）"
     exit 0
 }
 
@@ -106,6 +112,42 @@ function Download-Dufs {
         return $true
     } catch {
         Write-Error "❌ 下载失败: $($_.Exception.Message)"
+        return $false
+    }
+}
+
+# 设置锁定画面密码
+function Set-LockPassword {
+    param($Password)
+    
+    $scriptPath = "html\script.js"
+    
+    if (-not (Test-Path $scriptPath)) {
+        Write-Error "❌ 找不到 script.js 文件: $scriptPath"
+        return $false
+    }
+    
+    try {
+        Write-Info "🔐 设置锁定画面密码..."
+        
+        # 读取 script.js 文件内容
+        $content = Get-Content $scriptPath -Raw -Encoding UTF8
+        
+        # 替换密码设置行
+        $pattern = "let LOCK_PASSWORD = '[^']*';"
+        $replacement = "let LOCK_PASSWORD = '$Password';"
+        
+        if ($content -match $pattern) {
+            $newContent = $content -replace $pattern, $replacement
+            Set-Content $scriptPath -Value $newContent -Encoding UTF8 -NoNewline
+            Write-Success "✅ 锁定密码已设置为: $Password"
+            return $true
+        } else {
+            Write-Error "❌ 未找到密码设置行"
+            return $false
+        }
+    } catch {
+        Write-Error "❌ 设置密码失败: $($_.Exception.Message)"
         return $false
     }
 }
@@ -215,6 +257,14 @@ function Start-Dufs {
 # 主执行流程
 # 检查并创建 data 目录
 Ensure-DataDirectory
+
+# 设置锁定画面密码
+if ($LockPassword) {
+    Set-LockPassword $LockPassword
+} else {
+    # 设置默认密码
+    Set-LockPassword "mango2025"
+}
 
 # 检查并下载 dufs 可执行文件
 $exePath = Check-DufsExecutable

@@ -1,7 +1,7 @@
-// Dufs 文件管理器 JavaScript 代码
+﻿// Dufs 文件管理器 JavaScript 代码
 
 // 锁定画面配置
-const LOCK_PASSWORD = 'mango2024'; // 访问密码，可以根据需要修改
+let LOCK_PASSWORD = 'mango2025'; // 默认访问密码，可通过启动脚本修改
 let isScreenLocked = true;
 
 // 全局变量
@@ -2624,5 +2624,7 @@ function initLockScreen() {
         }, 100);
     }
 }
+
+
 
 

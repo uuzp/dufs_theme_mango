@@ -2,6 +2,41 @@
 chcp 65001 >nul
 title 🥭 Mango 文件管理器
 
+REM 处理命令行参数
+set LOCK_PASSWORD_ARG=
+if not "%~1"=="" (
+    if /i "%~1"=="--lock-password" (
+        if not "%~2"=="" (
+            set LOCK_PASSWORD_ARG=-LockPassword "%~2"
+            echo 🔐 设置锁定密码: %~2
+        ) else (
+            echo ❌ 错误: --lock-password 需要指定密码值
+            echo 用法: start.bat --lock-password 你的密码
+            pause
+            exit /b 1
+        )
+    ) else if /i "%~1"=="--help" (
+        echo.
+        echo 🥭 Mango 文件管理器启动脚本
+        echo.
+        echo 用法:
+        echo   start.bat                           - 使用默认密码 mango2025 启动
+        echo   start.bat --lock-password 密码      - 设置自定义锁定密码
+        echo   start.bat --help                    - 显示此帮助信息
+        echo.
+        echo 示例:
+        echo   start.bat --lock-password 123456
+        echo.
+        pause
+        exit /b 0
+    ) else (
+        echo ❌ 未知参数: %~1
+        echo 使用 start.bat --help 查看帮助
+        pause
+        exit /b 1
+    )
+)
+
 echo.
 echo 🚀 Mango 文件管理器启动脚本
 echo.
@@ -43,8 +78,8 @@ echo 🚀 正在调用 PowerShell 启动脚本...
 echo    文件: start.ps1
 echo.
 
-REM 调用 PowerShell 脚本
-powershell -ExecutionPolicy Bypass -File "start.ps1"
+REM 调用 PowerShell 脚本，传递密码参数
+powershell -ExecutionPolicy Bypass -File "start.ps1" %LOCK_PASSWORD_ARG%
 
 REM 如果 PowerShell 脚本执行成功，直接退出
 if not errorlevel 1 (
